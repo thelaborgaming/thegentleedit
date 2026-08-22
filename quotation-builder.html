@@ -165,6 +165,25 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .comment-remove{flex-shrink:0}
 .comment-add-btn{align-self:flex-start;background:none;border:1px dashed var(--border);color:var(--accent);font-size:10.5px;padding:4px 8px;border-radius:4px;cursor:pointer;font-family:inherit;transition:all .15s}
 .comment-add-btn:hover{background:var(--accent-light);border-color:var(--accent)}
+.comment-opt-wrap{display:flex;flex-direction:column;gap:3px}
+.comment-row-wrap{display:flex;flex-direction:column;gap:3px}
+
+/* ─── CARPENTRY ADDITIONAL-CHARGE TOGGLE ────────────── */
+.charge-note{font-size:10px;font-weight:600;color:var(--accent);margin-top:2px}
+.charge-toggle-wrap{display:flex;flex-direction:column;gap:5px;margin-left:19px;padding:3px 0}
+.charge-toggle-head{display:flex;align-items:center;gap:6px}
+.charge-switch{position:relative;display:inline-block;width:26px;height:15px;flex-shrink:0;cursor:pointer}
+.charge-switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.charge-switch .switch-track{position:absolute;inset:0;background:var(--border);border-radius:20px;transition:background .2s;pointer-events:none}
+.charge-switch .switch-track::before{content:'';position:absolute;height:11px;width:11px;left:2px;top:2px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.charge-switch input:checked+.switch-track{background:var(--accent)}
+.charge-switch input:checked+.switch-track::before{transform:translateX(11px)}
+.charge-label{font-size:10px;color:var(--text-muted);white-space:nowrap}
+.charge-fields{display:flex;gap:10px;padding-left:32px}
+.charge-field{display:flex;flex-direction:column;gap:2px}
+.charge-field-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)}
+.charge-amt{width:78px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:10.5px;color:var(--text-primary);font-family:var(--font-mono);outline:none}
+.charge-amt:focus{border-color:var(--border-focus)}
 
 /* ─── CUSTOM ROW ────────────────────────────────────── */
 .custom-row{background:color-mix(in srgb,var(--accent-light) 50%,var(--bg-card));border-bottom:1px solid var(--border);padding:10px 17px}
@@ -236,7 +255,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 }
 .doc-letterhead{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;padding-bottom:16px;margin-bottom:14px;border-bottom:2px solid #B8945A}
 .doc-logo-wrap{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-.doc-logo{height:54px;width:auto;object-fit:contain;display:block;margin:0;align-self:flex-start}
+.doc-logo{height:88px;width:auto;object-fit:contain;display:block;margin:0;align-self:flex-start}
 .doc-co-name{font-size:11px;color:#6B5E52;letter-spacing:.05em;margin-top:2px}
 .doc-co-reg{font-size:9.5px;color:#9E8E82}
 .doc-certs{display:flex;gap:10px;align-items:center;margin-top:4px}
@@ -262,6 +281,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .doc-item-name{font-weight:500;line-height:1.35;color:#1a1a1a;font-size:11.5px}
 .doc-item-dim{font-size:10px;color:#9E8E82;margin-top:2px}
 .doc-item-remark{font-size:10px;color:#7B1818;font-style:italic;margin-top:2px}
+.doc-item-charge-val{font-size:10px;color:#B8945A;font-weight:600;margin-top:2px;line-height:1.4}
 .doc-totals-wrap{display:flex;justify-content:flex-end;margin-top:12px}
 .doc-totals-table{border-collapse:collapse;font-size:12px}
 .doc-totals-table td{padding:4px 8px}
@@ -410,11 +430,11 @@ const CONFIG = {
   masterSheetId:  '13HqiurpWlpK6YWW-q1YGRcFzdRYhuhj5Rt5Z60qYy1Q',
   catalogSheetId: '1qPNVKzvPNi1CXrCFhF1meICucmMN-5djjWjIuCa86vs',
   quotesFolder:   '100T1humcjBh5Fvs_-e08fK314o5YsGAu',
-  companyName: 'The Gentle Edit Pte Ltd (Wee Tiling & Renovation)',
+  companyName: 'The Gentle Edit (Wee Tiling & Renovation)',
   companyReg:  'UEN: 53433573W',
   address:     '61 Ubi Road 1, #02-10 Oxley BizHub 1, Singapore 408727',
   phone:       '+65 9422 3385',
-  email:       'contact@calibratedesign.co',
+  email:       'hello@thegentleedit.sg',
 };
 
 /* ══════════════════════════════════════════════════════
@@ -589,6 +609,15 @@ function areaSort(a,b){const ai=AREA_ORDER.indexOf(a);const bi=AREA_ORDER.indexO
 ══════════════════════════════════════════════════════ */
 function slugify(s){return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').substr(0,60)}
 function detectUnit(s){if(!s)return'lot';if(/sqft/i.test(s))return'sqft';if(/m2/i.test(s))return'm2';if(/\bft\b/i.test(s))return'ft';return'lot'}
+/* ─── UNIT DROPDOWN ─────────────────────────────────── */
+const UNIT_OPTIONS=['Lot','Nos','L/S','Sqft','Ft'];
+function buildUnitSelect(li){
+  const cur=li.unit||'Lot';
+  const matched=UNIT_OPTIONS.find(u=>u.toLowerCase()===String(cur).toLowerCase());
+  let opts=UNIT_OPTIONS.map(u=>`<option value="${u}"${matched===u?' selected':''}>${u}</option>`).join('');
+  if(!matched&&cur)opts+=`<option value="${esc(cur)}" selected>${esc(cur)}</option>`;
+  return`<select class="ti" data-field="unit">${opts}</select>`;
+}
 function detectQty(s){if(!s)return 1;const m=s.match(/^(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):1}
 function extractDim(s,axis){if(!s)return null;const rx=axis==='L'?/L[:\s]*(\d+)/i:/H[:\s]*(\d+)/i;const m=s.match(rx);return m?parseInt(m[1]):null}
 
@@ -847,20 +876,136 @@ function buildPickerRow(catId,areaId){
    RENDER CATALOG ROW
    Column order: Qty | Unit | Unit Cost | Amount | P/L
 ══════════════════════════════════════════════════════ */
+/* ─── CARPENTRY ADDITIONAL-CHARGE TOGGLES ───────────────
+   Any line item under CARPENTRY WORKS gets a per-comment
+   toggle. Switching it on reveals two fields — Unit Cost and
+   Amount ($) — and whatever is typed there is added onto that
+   item's base Unit Cost / Amount. Charge state is tracked in
+   li.charge_state, keyed by the comment text (catalog options)
+   or 'custom-<i>' (free-typed comments), so it survives
+   re-renders.
+══════════════════════════════════════════════════════ */
+function isCarpentry(li){return String(li&&li.category_id||'').trim().toUpperCase()==='CARPENTRY WORKS';}
+function getChargeCostTotal(li){
+  if(!isCarpentry(li))return 0;
+  const state=li.charge_state||{};
+  return Object.values(state).reduce((sum,s)=>sum+((s&&s.enabled)?(Number(s.costAmt)||0):0),0);
+}
+function getChargeAmtTotal(li){
+  if(!isCarpentry(li))return 0;
+  const state=li.charge_state||{};
+  return Object.values(state).reduce((sum,s)=>sum+((s&&s.enabled)?(Number(s.amtAmt)||0):0),0);
+}
+function getActiveCharges(li){
+  if(!isCarpentry(li))return[];
+  const state=li.charge_state||{};
+  const list=[];
+  Object.keys(state).forEach(key=>{
+    const st=state[key];
+    if(!st||!st.enabled)return;
+    let label=key;
+    if(key.startsWith('custom-')){
+      const idx=parseInt(key.slice(7),10);
+      label=(li.remarks_custom_list&&li.remarks_custom_list[idx])||key;
+    }
+    const cost=Number(st.costAmt)||0,amt=Number(st.amtAmt)||0;
+    if(cost>0||amt>0)list.push({label,cost:+cost.toFixed(2),amt:+amt.toFixed(2)});
+  });
+  return list;
+}
+function chargeNoteText(li){
+  const c=getChargeCostTotal(li),a=getChargeAmtTotal(li);
+  const pl=a-c;
+  const parts=[];
+  if(c>0)parts.push(`+$${c.toFixed(2)} cost`);
+  if(a>0)parts.push(`+$${a.toFixed(2)} amount`);
+  if(c>0||a>0)parts.push(`${pl>=0?'+':'-'}$${Math.abs(pl).toFixed(2)} P/L`);
+  return parts.length?`Includes ${parts.join(', ')} additional charge(s) — already reflected in Unit Cost, Amount &amp; P/L below`:'';
+}
+function chargeNoteHTML(li){
+  const text=chargeNoteText(li);
+  return `<div class="charge-note" data-role="charge-note" style="display:${text?'block':'none'}">${text}</div>`;
+}
+function refreshChargeNote(row,li){
+  const el=row.querySelector('[data-role="charge-note"]');
+  if(!el)return;
+  const text=chargeNoteText(li);
+  el.textContent=text;
+  el.style.display=text?'block':'none';
+}
+function syncAmountField(row,li){
+  const el=row.querySelector('[data-field="amount"]');
+  if(el)el.value=Number(li.amount).toFixed(2);
+}
+function syncCostField(row,li){
+  const el=row.querySelector('[data-field="base_cost"]');
+  if(el)el.value=Number(li.base_cost).toFixed(2);
+}
+function setChargeEnabled(li,key,enabled){
+  li.charge_state=li.charge_state||{};
+  const st=li.charge_state[key]||{enabled:false,costAmt:0,amtAmt:0};
+  const c=Number(st.costAmt)||0,a=Number(st.amtAmt)||0;
+  if(enabled&&!st.enabled){li.base_cost=(Number(li.base_cost)||0)+c;li.amount=(Number(li.amount)||0)+a;}
+  else if(!enabled&&st.enabled){li.base_cost=(Number(li.base_cost)||0)-c;li.amount=(Number(li.amount)||0)-a;}
+  st.enabled=enabled;
+  li.charge_state[key]=st;
+}
+function setChargeCost(li,key,newCost){
+  li.charge_state=li.charge_state||{};
+  const st=li.charge_state[key]||{enabled:false,costAmt:0,amtAmt:0};
+  const oldC=Number(st.costAmt)||0,nC=Number(newCost)||0;
+  if(st.enabled)li.base_cost=(Number(li.base_cost)||0)-oldC+nC;
+  st.costAmt=nC;
+  li.charge_state[key]=st;
+}
+function setChargeAmt(li,key,newAmt){
+  li.charge_state=li.charge_state||{};
+  const st=li.charge_state[key]||{enabled:false,costAmt:0,amtAmt:0};
+  const oldA=Number(st.amtAmt)||0,nA=Number(newAmt)||0;
+  if(st.enabled)li.amount=(Number(li.amount)||0)-oldA+nA;
+  st.amtAmt=nA;
+  li.charge_state[key]=st;
+}
+function chargeToggleHTML(li,key){
+  li.charge_state=li.charge_state||{};
+  const st=li.charge_state[key]||{enabled:false,costAmt:0,amtAmt:0};
+  li.charge_state[key]=st;
+  return `<div class="charge-toggle-wrap">
+    <div class="charge-toggle-head">
+      <label class="charge-switch"><input type="checkbox" data-charge-enable="${esc(key)}"${st.enabled?' checked':''}><span class="switch-track"></span></label>
+      <span class="charge-label">Additional charge</span>
+    </div>
+    <div class="charge-fields" style="display:${st.enabled?'flex':'none'}">
+      <div class="charge-field"><span class="charge-field-label">Unit Cost</span><input type="number" class="charge-amt" data-charge-cost="${esc(key)}" value="${st.costAmt||0}" step="0.01" min="0" placeholder="0.00"></div>
+      <div class="charge-field"><span class="charge-field-label">Amount ($)</span><input type="number" class="charge-amt" data-charge-amt="${esc(key)}" value="${st.amtAmt||0}" step="0.01" min="0" placeholder="0.00"></div>
+    </div>
+  </div>`;
+}
+
 function computeRemarks(li){
+  // Additional-charge amounts are populated directly into the Unit Cost /
+  // Amount / P&L fields (see setChargeEnabled/setChargeCost/setChargeAmt) so
+  // they flow into the totals automatically. The comment text itself stays
+  // plain — no "(+$XXX)" suffix — to avoid duplicating that figure.
   const parts=[];
   if(li.comment_selected&&li.comment_selected.length)parts.push(...li.comment_selected);
-  if(li.remarks_custom_list&&li.remarks_custom_list.length)parts.push(...li.remarks_custom_list.filter(v=>v&&v.trim()));
+  if(li.remarks_custom_list&&li.remarks_custom_list.length){
+    li.remarks_custom_list.forEach(v=>{if(v&&v.trim())parts.push(v);});
+  }
   li.remarks=parts.join('; ');
 }
 function buildCommentBlockHTML(li){
+  const carp=isCarpentry(li);
   const hasOpts=li.comment_options&&li.comment_options.length>0;
   let optsHTML='';
   if(hasOpts){
-    const opts=li.comment_options.map(o=>`<label class="comment-opt"><input type="checkbox" data-comment-opt="${esc(o)}"${(li.comment_selected||[]).includes(o)?' checked':''}><span>${esc(o)}</span></label>`).join('');
+    const opts=li.comment_options.map(o=>{
+      const isChecked=(li.comment_selected||[]).includes(o);
+      return `<div class="comment-opt-wrap"><label class="comment-opt"><input type="checkbox" data-comment-opt="${esc(o)}"${isChecked?' checked':''}><span>${esc(o)}</span></label>${(carp&&isChecked)?chargeToggleHTML(li,o):''}</div>`;
+    }).join('');
     optsHTML=`<div class="comment-opts">${opts}</div>`;
   }
-  const customRows=(li.remarks_custom_list||[]).map((v,i)=>`<div class="comment-row"><input class="comment-txt" type="text" data-comment-custom-idx="${i}" value="${esc(v)}" placeholder="Custom comment…"><button type="button" class="btn-icon comment-remove" data-comment-remove-idx="${i}" title="Remove comment">✕</button></div>`).join('');
+  const customRows=(li.remarks_custom_list||[]).map((v,i)=>`<div class="comment-row-wrap"><div class="comment-row"><input class="comment-txt" type="text" data-comment-custom-idx="${i}" value="${esc(v)}" placeholder="Custom comment…"><button type="button" class="btn-icon comment-remove" data-comment-remove-idx="${i}" title="Remove comment">✕</button></div>${carp?chargeToggleHTML(li,'custom-'+i):''}</div>`).join('');
   return `<div class="comment-block"><div class="comment-custom-list">${customRows}</div>${optsHTML}<button type="button" class="comment-add-btn" data-comment-add>+ Add comment</button></div>`;
 }
 function wireCommentBlock(row,li,rerenderFn){
@@ -869,10 +1014,24 @@ function wireCommentBlock(row,li,rerenderFn){
   block.querySelectorAll('[data-comment-opt]').forEach(cb=>{
     cb.addEventListener('change',e=>{
       const val=e.target.dataset.commentOpt;
+      const carp=isCarpentry(li);
       li.comment_selected=li.comment_selected||[];
-      if(e.target.checked){if(!li.comment_selected.includes(val))li.comment_selected.push(val);}
-      else{li.comment_selected=li.comment_selected.filter(x=>x!==val);}
+      if(e.target.checked){
+        if(!li.comment_selected.includes(val))li.comment_selected.push(val);
+      }else{
+        li.comment_selected=li.comment_selected.filter(x=>x!==val);
+        if(carp&&li.charge_state&&li.charge_state[val]&&li.charge_state[val].enabled){
+          setChargeEnabled(li,val,false);
+        }
+      }
       computeRemarks(li);
+      if(carp){
+        // Re-render so the "Additional charge" toggle shows up only for
+        // ticked comments (and disappears again if the comment is unticked).
+        row.replaceWith(rerenderFn(li));
+        updateSummary();
+        return;
+      }
     });
   });
   block.querySelectorAll('[data-comment-custom-idx]').forEach(inp=>{
@@ -885,9 +1044,25 @@ function wireCommentBlock(row,li,rerenderFn){
   block.querySelectorAll('[data-comment-remove-idx]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const idx=parseInt(btn.dataset.commentRemoveIdx,10);
+      const key='custom-'+idx;
+      if(isCarpentry(li)&&li.charge_state&&li.charge_state[key]&&li.charge_state[key].enabled){
+        setChargeEnabled(li,key,false);
+      }
       li.remarks_custom_list.splice(idx,1);
+      if(li.charge_state){
+        const reindexed={};
+        Object.keys(li.charge_state).forEach(k=>{
+          if(k.startsWith('custom-')){
+            const oldIdx=parseInt(k.slice(7),10);
+            if(oldIdx<idx)reindexed[k]=li.charge_state[k];
+            else if(oldIdx>idx)reindexed['custom-'+(oldIdx-1)]=li.charge_state[k];
+          }else reindexed[k]=li.charge_state[k];
+        });
+        li.charge_state=reindexed;
+      }
       computeRemarks(li);
       row.replaceWith(rerenderFn(li));
+      updateSummary();
     });
   });
   const addBtn=block.querySelector('[data-comment-add]');
@@ -898,6 +1073,34 @@ function wireCommentBlock(row,li,rerenderFn){
       row.replaceWith(rerenderFn(li));
     });
   }
+  block.querySelectorAll('[data-charge-enable]').forEach(cb=>{
+    cb.addEventListener('change',e=>{
+      const key=e.target.dataset.chargeEnable;
+      setChargeEnabled(li,key,e.target.checked);
+      const fieldsEl=e.target.closest('.charge-toggle-wrap').querySelector('.charge-fields');
+      if(fieldsEl)fieldsEl.style.display=e.target.checked?'flex':'none';
+      computeRemarks(li);
+      syncAmountField(row,li);syncCostField(row,li);
+      refreshPL(row,li);refreshTotalCost(row,li);refreshChargeNote(row,li);updateSummary();
+    });
+  });
+  block.querySelectorAll('[data-charge-cost]').forEach(inp=>{
+    inp.addEventListener('input',e=>{
+      const key=e.target.dataset.chargeCost;
+      setChargeCost(li,key,e.target.value);
+      syncCostField(row,li);
+      refreshPL(row,li);refreshTotalCost(row,li);refreshChargeNote(row,li);updateSummary();
+    });
+  });
+  block.querySelectorAll('[data-charge-amt]').forEach(inp=>{
+    inp.addEventListener('input',e=>{
+      const key=e.target.dataset.chargeAmt;
+      setChargeAmt(li,key,e.target.value);
+      computeRemarks(li);
+      syncAmountField(row,li);
+      refreshPL(row,li);refreshTotalCost(row,li);refreshChargeNote(row,li);updateSummary();
+    });
+  });
 }
 
 function renderCatalogRow(li){
@@ -905,6 +1108,7 @@ function renderCatalogRow(li){
   row.className='item-row'+(li.included?'':' unchecked');
   row.dataset.id=li.id;
   const pl=calcPL(li);
+  const carp=isCarpentry(li);
   li.comment_selected=li.comment_selected||[];
   li.remarks_custom_list=li.remarks_custom_list||(li.remarks&&!(li.comment_options||[]).includes(li.remarks)?[li.remarks]:[]);
   const commentHTML=buildCommentBlockHTML(li);
@@ -916,12 +1120,13 @@ function renderCatalogRow(li){
       <div class="item-name">${esc(li.item_name)}</div>
       <div class="item-inputs">
         <div class="tf"><span class="tl">Qty</span><input type="number" class="ti" data-field="qty" value="${li.qty}" min="0" step="0.01"></div>
-        <div class="tf"><span class="tl">Unit</span><input type="text" class="ti" data-field="unit" value="${esc(li.unit)}" placeholder="lot"></div>
+        <div class="tf"><span class="tl">Unit</span>${buildUnitSelect(li)}</div>
         <div class="tf"><span class="tl">Unit Cost</span><input type="number" class="ti" data-field="base_cost" value="${li.base_cost}" min="0" step="0.01"></div>
         <div class="tf"><span class="tl">Total Cost ($)</span><input type="number" class="ti" data-field="total_cost" data-role="total-cost" value="${(Number(li.base_cost)*(Number(li.qty)||0)).toFixed(2)}" readonly></div>
         <div class="tf"><span class="tl">Amount ($)</span><input type="number" class="ti" data-field="amount" value="${Number(li.amount).toFixed(2)}" min="0" step="0.01"></div>
         <div class="tf"><span class="tl">P / L</span><input type="number" class="ti pl-display ${pl>=0?'pl-pos':'pl-neg'}" data-field="pl" value="${pl.toFixed(2)}" step="0.01"></div>
       </div>
+      ${carp?chargeNoteHTML(li):''}
       ${dimHTML}${commentHTML}
     </div>
     <button class="item-remove" title="Remove from quote">✕</button>`;
@@ -969,6 +1174,7 @@ function renderCustomRow(li){
   const row=document.createElement('div');row.className='custom-row';row.dataset.id=li.id;
   const areaOpts=[...new Set(catalog.map(c=>c.area_id||'').filter(Boolean))].map(a=>`<option value="${esc(a)}"${li.area_id===a?' selected':''}>${esc(a)}</option>`).join('');
   const pl=calcPL(li);
+  const carp=isCarpentry(li);
   row.innerHTML=`<div class="custom-head"><span class="custom-tag">Custom</span><button class="btn-icon" title="Remove">✕</button></div>
     <div class="custom-g1">
       <div class="tf"><span class="tl">Description</span><input type="text" class="ti" data-field="item_name" value="${esc(li.item_name)}" placeholder="Item description"></div>
@@ -977,7 +1183,7 @@ function renderCustomRow(li){
     </div>
     <div class="custom-g2">
       <div class="tf"><span class="tl">Qty</span><input type="number" class="ti" data-field="qty" value="${li.qty}" min="0"></div>
-      <div class="tf"><span class="tl">Unit</span><input type="text" class="ti" data-field="unit" value="${esc(li.unit)}" placeholder="lot"></div>
+      <div class="tf"><span class="tl">Unit</span>${buildUnitSelect(li)}</div>
       <div class="tf"><span class="tl">Unit Cost</span><input type="number" class="ti" data-field="base_cost" value="${li.base_cost}" min="0" step="0.01"></div>
       <div class="tf"><span class="tl">Total Cost ($)</span><input type="number" class="ti" data-field="total_cost" data-role="total-cost" value="${(Number(li.base_cost)*(Number(li.qty)||0)).toFixed(2)}" readonly></div>
       <div class="tf"><span class="tl">Amount ($)</span><input type="number" class="ti" data-field="amount" value="${Number(li.amount).toFixed(2)}" min="0" step="0.01"></div>
@@ -985,10 +1191,12 @@ function renderCustomRow(li){
       <div class="tf"><span class="tl">Width mm</span><input type="number" class="ti" data-field="width_mm" value="${li.width_mm||''}" placeholder="opt."></div>
       <div class="tf"><span class="tl">Height mm</span><input type="number" class="ti" data-field="height_mm" value="${li.height_mm||''}" placeholder="opt."></div>
     </div>
+    ${carp?chargeNoteHTML(li):''}
     ${buildCommentBlockHTML(li)}`;
   row.querySelector('.btn-icon').addEventListener('click',()=>{lineItems=lineItems.filter(x=>x.id!==li.id);renderLineItems();});
   row.querySelectorAll('[data-field]').forEach(el=>{
-    el.addEventListener('input',e=>{
+    const ev=el.tagName==='SELECT'?'change':'input';
+    el.addEventListener(ev,e=>{
       const f=e.target.dataset.field;
       const textF=['item_name','unit','area_id','category_id'];
       li[f]=textF.includes(f)?e.target.value:(parseFloat(e.target.value)||0);
@@ -999,6 +1207,8 @@ function renderCustomRow(li){
       li.included=true;refreshPL(row,li);refreshTotalCost(row,li);updateSummary();
     });
   });
+  const catInput=row.querySelector('[data-field="category_id"]');
+  if(catInput)catInput.addEventListener('blur',()=>{row.replaceWith(renderCustomRow(li));});
   wireCommentBlock(row,li,renderCustomRow);
   return row;
 }
@@ -1025,7 +1235,7 @@ function buildPayload(){
   return{
     project:{quote_ref:document.getElementById('quoteRef').value.trim(),salesperson:document.getElementById('salesperson').value.trim(),client_name:document.getElementById('clientName').value.trim(),phone:document.getElementById('phone').value.trim(),client_email:document.getElementById('clientEmail').value.trim(),property_type:document.getElementById('propertyType').value,project_address:document.getElementById('projectAddress').value.trim(),notes:document.getElementById('notes').value.trim()},
     summary:{total_amount:+totalAmt.toFixed(2),total_cost:+totalCost.toFixed(2),total_profit:+profit.toFixed(2),margin_pct:+margin.toFixed(2)},
-    line_items:active.map(li=>{const q=Number(li.qty)||1;return{line_id:li.id,item_id:li.item_id||'custom',item_name:li.item_name,category_id:li.category_id,area_id:li.area_id,qty:q,unit:li.unit||'lot',width_mm:li.width_mm||null,height_mm:li.height_mm||null,cost:+((Number(li.base_cost)||0)*q).toFixed(2),markup_pct:Number(li.markup_pct)||0,amount:+((Number(li.amount)||0)*q).toFixed(2),pl:+calcPL(li).toFixed(2),included_by_default:!!li.included_by_default,is_custom:!!li.is_custom,remarks:li.remarks||''};}),
+    line_items:active.map(li=>{const q=Number(li.qty)||1;return{line_id:li.id,item_id:li.item_id||'custom',item_name:li.item_name,category_id:li.category_id,area_id:li.area_id,qty:q,unit:li.unit||'lot',width_mm:li.width_mm||null,height_mm:li.height_mm||null,cost:+((Number(li.base_cost)||0)*q).toFixed(2),markup_pct:Number(li.markup_pct)||0,amount:+((Number(li.amount)||0)*q).toFixed(2),pl:+calcPL(li).toFixed(2),included_by_default:!!li.included_by_default,is_custom:!!li.is_custom,remarks:li.remarks||'',charges:getActiveCharges(li)};}),
     // Preserve original created_at when re-submitting an edited quote
     created_at: _loadedCreatedAt || null,
   };
@@ -1149,17 +1359,36 @@ function buildDocHTML(payload, mode){
         const dim=(li.width_mm&&li.height_mm)?`L:${li.width_mm}mm × H:${li.height_mm}mm`:(li.width_mm?`W:${li.width_mm}mm`:'');
         const unitAmt=li.qty?li.amount/li.qty:li.amount;
         const plVal=li.amount-(li.cost||0);
+        const remarkLines=li.remarks?li.remarks.split(';').map(r=>r.trim()).filter(Boolean):[];
+        const remarkHTML=remarkLines.map(r=>`<div class="doc-item-remark">↳ ${esc(r)}</div>`).join('');
+
+        // Additional-charge figures sit in the same row, stacked one line
+        // per comment so they land to the right of that comment (no
+        // separate row) — a blank filler line keeps un-charged comments
+        // from throwing off the alignment.
+        const chargesByLabel={};
+        (li.charges||[]).forEach(ch=>{chargesByLabel[ch.label]=ch;});
+        const hasCharges=!!(li.charges&&li.charges.length);
+        function chargeLine(v){
+          if(v===null||v===undefined)return`<div class="doc-item-charge-val">&nbsp;</div>`;
+          return`<div class="doc-item-charge-val">${v>=0?'+':'−'}${fmt(Math.abs(v))}</div>`;
+        }
+        function chargeCol(getter){
+          if(!hasCharges)return'';
+          return remarkLines.map(r=>chargeLine(chargesByLabel[r]?getter(chargesByLabel[r]):null)).join('');
+        }
+
         rowsHTML+=`<tr>
           <td style="color:#9E8E82;font-family:monospace;font-size:9.5px;width:22px">${num++}</td>
           <td><div class="doc-item-name">${esc(li.item_name)}</div>
             ${dim?`<div class="doc-item-dim">📐 ${esc(dim)}</div>`:''}
-            ${li.remarks?`<div class="doc-item-remark">↳ ${esc(li.remarks)}</div>`:''}</td>
+            ${remarkHTML}</td>
           <td class="r" style="width:38px">${li.qty}</td>
           <td style="width:44px">${esc(li.unit||'lot')}</td>
-          <td class="r" style="width:72px">${fmt(unitAmt)}</td>
-          ${isDesigner?`<td class="r" style="width:72px">${fmt(li.cost||0)}</td>`:''}
-          <td class="r" style="width:78px;font-weight:600">${fmt(li.amount)}</td>
-          ${isDesigner?`<td class="r" style="width:72px;color:${plVal>=0?'#2E7D32':'#C62828'};font-weight:600">${(plVal>=0?'+':'')+fmt(plVal)}</td>`:''}
+          <td class="r" style="width:72px">${fmt(unitAmt)}${chargeCol(ch=>ch.amt)}</td>
+          ${isDesigner?`<td class="r" style="width:72px">${fmt(li.cost||0)}${chargeCol(ch=>ch.cost)}</td>`:''}
+          <td class="r" style="width:78px;font-weight:600">${fmt(li.amount)}${chargeCol(ch=>ch.amt*li.qty)}</td>
+          ${isDesigner?`<td class="r" style="width:72px;color:${plVal>=0?'#2E7D32':'#C62828'};font-weight:600">${(plVal>=0?'+':'')+fmt(plVal)}${chargeCol(ch=>(ch.amt-ch.cost)*li.qty)}</td>`:''}
         </tr>`;
       });
     });
