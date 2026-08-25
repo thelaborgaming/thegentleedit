@@ -433,7 +433,7 @@ const CONFIG = {
   companyName: 'The Gentle Edit (Wee Tiling & Renovation)',
   companyReg:  'UEN: 53433573W',
   address:     '61 Ubi Road 1, #02-10 Oxley BizHub 1, Singapore 408727',
-  phone:       '+65 9422 3385',
+  phone:       '+65 8987 8199',
   email:       'hello@thegentleedit.sg',
 };
 
@@ -670,11 +670,11 @@ function addFromPicker(items){
 /* ══════════════════════════════════════════════════════
    CALCULATIONS
 ══════════════════════════════════════════════════════ */
-function calcPL(li){const q=Number(li.qty)||1;return((Number(li.amount)||0)-(Number(li.base_cost)||0))*q;}
+function calcPL(li){return lineAmountTotal(li)-lineCostTotal(li);}
 function updateSummary(){
   const active=lineItems.filter(li=>li.included);
   let totalAmt=0,totalCost=0;
-  active.forEach(li=>{const q=Number(li.qty)||1;totalAmt+=(Number(li.amount)||0)*q;totalCost+=(Number(li.base_cost)||0)*q;});
+  active.forEach(li=>{totalAmt+=lineAmountTotal(li);totalCost+=lineCostTotal(li);});
   const profit=totalAmt-totalCost,margin=totalAmt>0?(profit/totalAmt)*100:0;
   document.getElementById('sumAmount').textContent=fmt(totalAmt);
   document.getElementById('sumCost').textContent=fmt(totalCost);
@@ -895,6 +895,20 @@ function getChargeAmtTotal(li){
   if(!isCarpentry(li))return 0;
   const state=li.charge_state||{};
   return Object.values(state).reduce((sum,s)=>sum+((s&&s.enabled)?(Number(s.amtAmt)||0):0),0);
+}
+/* Additional-charge amounts are flat (entered once) and must NOT be
+   multiplied by the item's quantity. li.base_cost / li.amount store the
+   charge baked directly into the per-unit figure (see setChargeEnabled/
+   setChargeCost/setChargeAmt), so to get a correct line total we strip the
+   flat charge back out, multiply the remaining per-unit figure by qty,
+   then add the flat charge back on once. */
+function lineAmountTotal(li){
+  const q=Number(li.qty)||1,chargeAmt=getChargeAmtTotal(li);
+  return ((Number(li.amount)||0)-chargeAmt)*q+chargeAmt;
+}
+function lineCostTotal(li){
+  const q=Number(li.qty)||1,chargeCost=getChargeCostTotal(li);
+  return ((Number(li.base_cost)||0)-chargeCost)*q+chargeCost;
 }
 function getActiveCharges(li){
   if(!isCarpentry(li))return[];
@@ -1122,7 +1136,7 @@ function renderCatalogRow(li){
         <div class="tf"><span class="tl">Qty</span><input type="number" class="ti" data-field="qty" value="${li.qty}" min="0" step="0.01"></div>
         <div class="tf"><span class="tl">Unit</span>${buildUnitSelect(li)}</div>
         <div class="tf"><span class="tl">Unit Cost</span><input type="number" class="ti" data-field="base_cost" value="${li.base_cost}" min="0" step="0.01"></div>
-        <div class="tf"><span class="tl">Total Cost ($)</span><input type="number" class="ti" data-field="total_cost" data-role="total-cost" value="${(Number(li.base_cost)*(Number(li.qty)||0)).toFixed(2)}" readonly></div>
+        <div class="tf"><span class="tl">Total Cost ($)</span><input type="number" class="ti" data-field="total_cost" data-role="total-cost" value="${((Number(li.base_cost)-getChargeCostTotal(li))*(Number(li.qty)||0)+getChargeCostTotal(li)).toFixed(2)}" readonly></div>
         <div class="tf"><span class="tl">Amount ($)</span><input type="number" class="ti" data-field="amount" value="${Number(li.amount).toFixed(2)}" min="0" step="0.01"></div>
         <div class="tf"><span class="tl">P / L</span><input type="number" class="ti pl-display ${pl>=0?'pl-pos':'pl-neg'}" data-field="pl" value="${pl.toFixed(2)}" step="0.01"></div>
       </div>
@@ -1161,7 +1175,8 @@ function handleChange(e,li,row){
 function refreshTotalCost(row,li){
   const el=row.querySelector('[data-role="total-cost"]');
   if(!el)return;
-  const tc=(Number(li.base_cost)||0)*(Number(li.qty)||0);
+  const chargeCost=getChargeCostTotal(li);
+  const tc=((Number(li.base_cost)||0)-chargeCost)*(Number(li.qty)||0)+chargeCost;
   el.value=tc.toFixed(2);
 }
 function refreshPL(row,li){const pl=calcPL(li);const el=row.querySelector('.pl-display');if(!el||document.activeElement===el)return;el.value=pl.toFixed(2);el.className='ti pl-display '+(pl>=0?'pl-pos':'pl-neg');}
@@ -1185,7 +1200,7 @@ function renderCustomRow(li){
       <div class="tf"><span class="tl">Qty</span><input type="number" class="ti" data-field="qty" value="${li.qty}" min="0"></div>
       <div class="tf"><span class="tl">Unit</span>${buildUnitSelect(li)}</div>
       <div class="tf"><span class="tl">Unit Cost</span><input type="number" class="ti" data-field="base_cost" value="${li.base_cost}" min="0" step="0.01"></div>
-      <div class="tf"><span class="tl">Total Cost ($)</span><input type="number" class="ti" data-field="total_cost" data-role="total-cost" value="${(Number(li.base_cost)*(Number(li.qty)||0)).toFixed(2)}" readonly></div>
+      <div class="tf"><span class="tl">Total Cost ($)</span><input type="number" class="ti" data-field="total_cost" data-role="total-cost" value="${((Number(li.base_cost)-getChargeCostTotal(li))*(Number(li.qty)||0)+getChargeCostTotal(li)).toFixed(2)}" readonly></div>
       <div class="tf"><span class="tl">Amount ($)</span><input type="number" class="ti" data-field="amount" value="${Number(li.amount).toFixed(2)}" min="0" step="0.01"></div>
       <div class="tf"><span class="tl">P / L</span><input type="number" class="ti pl-display ${pl>=0?'pl-pos':'pl-neg'}" data-field="pl" value="${pl.toFixed(2)}" step="0.01"></div>
       <div class="tf"><span class="tl">Width mm</span><input type="number" class="ti" data-field="width_mm" value="${li.width_mm||''}" placeholder="opt."></div>
@@ -1230,12 +1245,12 @@ let _loadedView = false;
 function buildPayload(){
   const active=lineItems.filter(li=>li.included&&(li.is_custom||(Number(li.qty)||0)>0));
   let totalAmt=0,totalCost=0;
-  active.forEach(li=>{const q=Number(li.qty)||1;totalAmt+=(Number(li.amount)||0)*q;totalCost+=(Number(li.base_cost)||0)*q;});
+  active.forEach(li=>{totalAmt+=lineAmountTotal(li);totalCost+=lineCostTotal(li);});
   const profit=totalAmt-totalCost,margin=totalAmt>0?(profit/totalAmt)*100:0;
   return{
     project:{quote_ref:document.getElementById('quoteRef').value.trim(),salesperson:document.getElementById('salesperson').value.trim(),client_name:document.getElementById('clientName').value.trim(),phone:document.getElementById('phone').value.trim(),client_email:document.getElementById('clientEmail').value.trim(),property_type:document.getElementById('propertyType').value,project_address:document.getElementById('projectAddress').value.trim(),notes:document.getElementById('notes').value.trim()},
     summary:{total_amount:+totalAmt.toFixed(2),total_cost:+totalCost.toFixed(2),total_profit:+profit.toFixed(2),margin_pct:+margin.toFixed(2)},
-    line_items:active.map(li=>{const q=Number(li.qty)||1;return{line_id:li.id,item_id:li.item_id||'custom',item_name:li.item_name,category_id:li.category_id,area_id:li.area_id,qty:q,unit:li.unit||'lot',width_mm:li.width_mm||null,height_mm:li.height_mm||null,cost:+((Number(li.base_cost)||0)*q).toFixed(2),markup_pct:Number(li.markup_pct)||0,amount:+((Number(li.amount)||0)*q).toFixed(2),pl:+calcPL(li).toFixed(2),included_by_default:!!li.included_by_default,is_custom:!!li.is_custom,remarks:li.remarks||'',charges:getActiveCharges(li)};}),
+    line_items:active.map(li=>{const q=Number(li.qty)||1;return{line_id:li.id,item_id:li.item_id||'custom',item_name:li.item_name,category_id:li.category_id,area_id:li.area_id,qty:q,unit:li.unit||'lot',width_mm:li.width_mm||null,height_mm:li.height_mm||null,cost:+lineCostTotal(li).toFixed(2),markup_pct:Number(li.markup_pct)||0,amount:+lineAmountTotal(li).toFixed(2),pl:+calcPL(li).toFixed(2),included_by_default:!!li.included_by_default,is_custom:!!li.is_custom,remarks:li.remarks||'',charges:getActiveCharges(li)};}),
     // Preserve original created_at when re-submitting an edited quote
     created_at: _loadedCreatedAt || null,
   };
@@ -1357,7 +1372,8 @@ function buildDocHTML(payload, mode){
       if(akeys.length>1)rowsHTML+=`<tr class="doc-area-row"><td colspan="${colCount}">↳ ${esc(area)}</td></tr>`;
       areas[area].forEach(li=>{
         const dim=(li.width_mm&&li.height_mm)?`L:${li.width_mm}mm × H:${li.height_mm}mm`:(li.width_mm?`W:${li.width_mm}mm`:'');
-        const unitAmt=li.qty?li.amount/li.qty:li.amount;
+        const chargeAmtSum=(li.charges||[]).reduce((s,c)=>s+c.amt,0);
+        const unitAmt=li.qty?(li.amount-chargeAmtSum)/li.qty:(li.amount-chargeAmtSum);
         const plVal=li.amount-(li.cost||0);
         const remarkLines=li.remarks?li.remarks.split(';').map(r=>r.trim()).filter(Boolean):[];
         const remarkHTML=remarkLines.map(r=>`<div class="doc-item-remark">↳ ${esc(r)}</div>`).join('');
@@ -1387,8 +1403,8 @@ function buildDocHTML(payload, mode){
           <td style="width:44px">${esc(li.unit||'lot')}</td>
           <td class="r" style="width:72px">${fmt(unitAmt)}${chargeCol(ch=>ch.amt)}</td>
           ${isDesigner?`<td class="r" style="width:72px">${fmt(li.cost||0)}${chargeCol(ch=>ch.cost)}</td>`:''}
-          <td class="r" style="width:78px;font-weight:600">${fmt(li.amount)}${chargeCol(ch=>ch.amt*li.qty)}</td>
-          ${isDesigner?`<td class="r" style="width:72px;color:${plVal>=0?'#2E7D32':'#C62828'};font-weight:600">${(plVal>=0?'+':'')+fmt(plVal)}${chargeCol(ch=>(ch.amt-ch.cost)*li.qty)}</td>`:''}
+          <td class="r" style="width:78px;font-weight:600">${fmt(li.amount)}${chargeCol(ch=>ch.amt)}</td>
+          ${isDesigner?`<td class="r" style="width:72px;color:${plVal>=0?'#2E7D32':'#C62828'};font-weight:600">${(plVal>=0?'+':'')+fmt(plVal)}${chargeCol(ch=>(ch.amt-ch.cost))}</td>`:''}
         </tr>`;
       });
     });
