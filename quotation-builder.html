@@ -184,6 +184,9 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .charge-field-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)}
 .charge-amt{width:78px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:10.5px;color:var(--text-primary);font-family:var(--font-mono);outline:none}
 .charge-amt:focus{border-color:var(--border-focus)}
+.charge-amt[readonly]{background:var(--bg-toolbar);color:var(--text-secondary);cursor:default}
+.charge-pl.pl-pos{color:var(--pl-pos);font-weight:600}
+.charge-pl.pl-neg{color:var(--pl-neg);font-weight:600}
 
 /* ─── CUSTOM ROW ────────────────────────────────────── */
 .custom-row{background:color-mix(in srgb,var(--accent-light) 50%,var(--bg-card));border-bottom:1px solid var(--border);padding:10px 17px}
@@ -281,7 +284,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .doc-item-name{font-weight:500;line-height:1.35;color:#1a1a1a;font-size:11.5px}
 .doc-item-dim{font-size:10px;color:#9E8E82;margin-top:2px}
 .doc-item-remark{font-size:10px;color:#7B1818;font-style:italic;margin-top:2px}
-.doc-item-charge-val{font-size:10px;color:#B8945A;font-weight:600;margin-top:2px;line-height:1.4}
+.doc-item-charge-val{font-size:inherit;color:#1a1a1a;font-weight:inherit;margin-top:2px;line-height:1.4}
 .doc-totals-wrap{display:flex;justify-content:flex-end;margin-top:12px}
 .doc-totals-table{border-collapse:collapse;font-size:12px}
 .doc-totals-table td{padding:4px 8px}
@@ -992,8 +995,16 @@ function chargeToggleHTML(li,key){
     <div class="charge-fields" style="display:${st.enabled?'flex':'none'}">
       <div class="charge-field"><span class="charge-field-label">Unit Cost</span><input type="number" class="charge-amt" data-charge-cost="${esc(key)}" value="${st.costAmt||0}" step="0.01" min="0" placeholder="0.00"></div>
       <div class="charge-field"><span class="charge-field-label">Amount ($)</span><input type="number" class="charge-amt" data-charge-amt="${esc(key)}" value="${st.amtAmt||0}" step="0.01" min="0" placeholder="0.00"></div>
+      <div class="charge-field"><span class="charge-field-label">P / L</span><input type="number" class="charge-amt charge-pl ${((st.amtAmt||0)-(st.costAmt||0))>=0?'pl-pos':'pl-neg'}" data-charge-pl="${esc(key)}" value="${((st.amtAmt||0)-(st.costAmt||0)).toFixed(2)}" step="0.01" readonly></div>
     </div>
   </div>`;
+}
+function refreshChargePL(block,key,st){
+  const el=block.querySelector(`[data-charge-pl="${key}"]`);
+  if(!el)return;
+  const pl=(Number(st.amtAmt)||0)-(Number(st.costAmt)||0);
+  el.value=pl.toFixed(2);
+  el.className='charge-amt charge-pl '+(pl>=0?'pl-pos':'pl-neg');
 }
 
 function computeRemarks(li){
@@ -1095,6 +1106,7 @@ function wireCommentBlock(row,li,rerenderFn){
       if(fieldsEl)fieldsEl.style.display=e.target.checked?'flex':'none';
       computeRemarks(li);
       syncAmountField(row,li);syncCostField(row,li);
+      refreshChargePL(block,key,li.charge_state[key]);
       refreshPL(row,li);refreshTotalCost(row,li);refreshChargeNote(row,li);updateSummary();
     });
   });
@@ -1103,6 +1115,7 @@ function wireCommentBlock(row,li,rerenderFn){
       const key=e.target.dataset.chargeCost;
       setChargeCost(li,key,e.target.value);
       syncCostField(row,li);
+      refreshChargePL(block,key,li.charge_state[key]);
       refreshPL(row,li);refreshTotalCost(row,li);refreshChargeNote(row,li);updateSummary();
     });
   });
@@ -1112,6 +1125,7 @@ function wireCommentBlock(row,li,rerenderFn){
       setChargeAmt(li,key,e.target.value);
       computeRemarks(li);
       syncAmountField(row,li);
+      refreshChargePL(block,key,li.charge_state[key]);
       refreshPL(row,li);refreshTotalCost(row,li);refreshChargeNote(row,li);updateSummary();
     });
   });
@@ -1385,13 +1399,17 @@ function buildDocHTML(payload, mode){
         const chargesByLabel={};
         (li.charges||[]).forEach(ch=>{chargesByLabel[ch.label]=ch;});
         const hasCharges=!!(li.charges&&li.charges.length);
-        function chargeLine(v){
+        function chargeLine(v,isPL){
           if(v===null||v===undefined)return`<div class="doc-item-charge-val">&nbsp;</div>`;
-          return`<div class="doc-item-charge-val">${v>=0?'+':'−'}${fmt(Math.abs(v))}</div>`;
+          if(isPL){
+            const col=v>=0?'#2E7D32':'#C62828';
+            return`<div class="doc-item-charge-val" style="color:${col}">${v>=0?'+':'−'}${fmt(Math.abs(v))}</div>`;
+          }
+          return`<div class="doc-item-charge-val">${v>=0?'':'−'}${fmt(Math.abs(v))}</div>`;
         }
-        function chargeCol(getter){
+        function chargeCol(getter,isPL){
           if(!hasCharges)return'';
-          return remarkLines.map(r=>chargeLine(chargesByLabel[r]?getter(chargesByLabel[r]):null)).join('');
+          return remarkLines.map(r=>chargeLine(chargesByLabel[r]?getter(chargesByLabel[r]):null,isPL)).join('');
         }
 
         rowsHTML+=`<tr>
@@ -1404,7 +1422,7 @@ function buildDocHTML(payload, mode){
           <td class="r" style="width:72px">${fmt(unitAmt)}${chargeCol(ch=>ch.amt)}</td>
           ${isDesigner?`<td class="r" style="width:72px">${fmt(li.cost||0)}${chargeCol(ch=>ch.cost)}</td>`:''}
           <td class="r" style="width:78px;font-weight:600">${fmt(li.amount)}${chargeCol(ch=>ch.amt)}</td>
-          ${isDesigner?`<td class="r" style="width:72px;color:${plVal>=0?'#2E7D32':'#C62828'};font-weight:600">${(plVal>=0?'+':'')+fmt(plVal)}${chargeCol(ch=>(ch.amt-ch.cost))}</td>`:''}
+          ${isDesigner?`<td class="r" style="width:72px;color:${plVal>=0?'#2E7D32':'#C62828'};font-weight:600">${(plVal>=0?'+':'')+fmt(plVal)}${chargeCol(ch=>(ch.amt-ch.cost),true)}</td>`:''}
         </tr>`;
       });
     });
