@@ -359,6 +359,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
           <button class="btn btn-primary" id="btnAddPending" disabled style="min-width:140px">Add Selected</button>
           <button class="btn btn-secondary" id="btnDefaults">⚡ Insert defaults</button>
           <button class="btn btn-ghost" id="btnAddCustom">＋ Custom item</button>
+          <button class="btn btn-ghost" id="btnRemoveAll" style="color:var(--danger)">🗑 Remove all</button>
         </div>
       </div>
       <div id="lineItemsContainer">
@@ -653,6 +654,13 @@ function insertDefaults(){
   const added=new Set(lineItems.filter(li=>!li.is_custom).map(li=>li.item_name));
   catalog.filter(c=>c.is_default&&!added.has(c.item_name)).forEach(c=>lineItems.push(makeLI(c,true)));
   renderLineItems();
+}
+function removeAllItems(){
+  if(!lineItems.length)return;
+  if(!confirm(`Remove all ${lineItems.length} line item(s)? This can't be undone.`))return;
+  lineItems=[];
+  renderLineItems();
+  updateSummary();
 }
 
 function addFromPicker(items){
@@ -1578,6 +1586,7 @@ document.getElementById('themeToggle').addEventListener('click',()=>{
   document.getElementById('themeLabel').textContent=dark?'Light':'Dark';
 });
 document.getElementById('btnDefaults').addEventListener('click',insertDefaults);
+document.getElementById('btnRemoveAll').addEventListener('click',removeAllItems);
 document.getElementById('btnClear').addEventListener('click',()=>{
   ['quoteRef','salesperson','clientName','phone','clientEmail','projectAddress','notes'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
