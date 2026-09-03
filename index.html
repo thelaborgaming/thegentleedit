@@ -301,6 +301,21 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 /* Designer copy watermark label */
 .doc.designer-copy .doc-watermark-designer{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(184,148,90,.07);pointer-events:none;white-space:nowrap;letter-spacing:.15em;z-index:0}
 
+/* ─── TERMS & CONDITIONS PAGE ────────────────────────── */
+.doc-tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+@media print{.doc-tc{page-break-before:always;border-top:none;margin-top:0;padding-top:0}}
+.doc-tc-header{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:12px;margin-bottom:16px;border-bottom:2px solid #B8945A}
+.doc-tc-title{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:#1a1a1a;text-decoration:underline;text-underline-offset:3px}
+.doc-tc-ref{font-family:monospace;font-size:10.5px;color:#9E8E82}
+.doc-tc-list{list-style:none;counter-reset:tc;font-size:11px;line-height:1.6;color:#1a1a1a;margin:0;padding:0}
+.doc-tc-list>li{counter-increment:tc;position:relative;padding-left:22px;margin-bottom:13px}
+.doc-tc-list>li::before{content:counter(tc);position:absolute;left:0;top:0;font-weight:700;color:#B8945A}
+.doc-tc-pay{margin-top:6px;padding:8px 10px;background:#FAF8F5;border-radius:6px;border:1px solid #E8E2D9}
+.doc-tc-payrow{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+.doc-tc-payrow+.doc-tc-payrow{border-top:1px dashed #E8E2D9}
+.doc-tc-amt{font-family:monospace;font-weight:600;color:#7B1818;white-space:nowrap}
+.doc-tc-sig-note{margin-top:22px;font-size:11px;line-height:1.6}
+
 /* ─── LOADER ────────────────────────────────────────── */
 .loader-wrap{padding:36px 18px;text-align:center;color:var(--text-muted);font-size:12.5px}
 .spin{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px}
@@ -439,6 +454,15 @@ const CONFIG = {
   address:     '61 Ubi Road 1, #02-10 Oxley BizHub 1, Singapore 408727',
   phone:       '+65 8987 8199',
   email:       'hello@thegentleedit.sg',
+  // Terms & Conditions — progressive payment split (must total 100)
+  paymentTerms: [
+    {pct:10, label:'10% deposit upon signing of quotation'},
+    {pct:40, label:'40% upon commencement of work'},
+    {pct:45, label:'45% upon commencement carpentry measurements'},
+    {pct:5,  label:'5% after completion of work and satisfied after 7 days'},
+  ],
+  // Contract sum above which management countersignature is required
+  managementCountersignThreshold: 150000,
 };
 
 /* ══════════════════════════════════════════════════════
@@ -1505,6 +1529,50 @@ function buildDocHTML(payload, mode){
       <div>${esc(CONFIG.companyName)} &nbsp;·&nbsp; ${esc(CONFIG.phone)} &nbsp;·&nbsp; ${esc(CONFIG.email)}</div>
       <div>This quotation is valid for 30 days from date of issue.</div>
     </div>
+    <div class="doc-footer-sigs">
+      <div><div class="doc-sig-line">Authorised Signature &amp; Company Stamp</div></div>
+      <div><div class="doc-sig-line">Client Acceptance Signature &amp; Date</div></div>
+    </div>
+  </div>`+buildTermsHTML(payload);
+}
+
+/* ══════════════════════════════════════════════════════
+   TERMS & CONDITIONS PAGE
+   Payment split is computed live off payload.summary.total_amount,
+   so it always matches this specific quotation's grand total.
+══════════════════════════════════════════════════════ */
+function buildTermsHTML(payload){
+  const p=payload.project,s=payload.summary;
+  const total=s.total_amount||0;
+  const letters=['A','B','C','D','E','F','G','H'];
+  const payRowsHTML=CONFIG.paymentTerms.map((t,i)=>{
+    const amt=total*(t.pct/100);
+    return`<div class="doc-tc-payrow"><span>${letters[i]||i+1}) ${esc(t.label)}</span><span class="doc-tc-amt">${fmt(amt)}</span></div>`;
+  }).join('');
+  const co=esc(CONFIG.companyName);
+  const threshold=fmt(CONFIG.managementCountersignThreshold).replace(/\.00$/,'');
+
+  return`<div class="doc doc-tc">
+    <div class="doc-tc-header">
+      <div class="doc-tc-title">Terms &amp; Conditions</div>
+      <div class="doc-tc-ref">Ref: ${esc(p.quote_ref||'DRAFT')}</div>
+    </div>
+    <ol class="doc-tc-list">
+      <li>The following progressive Terms of Payment shall be strictly adhered to:
+        <div class="doc-tc-pay">${payRowsHTML}</div>
+      </li>
+      <li>As timely payments are of essence in our business, ${co} reserves the right to stop work if the aforementioned Terms of Payment is not adhered to.</li>
+      <li>All payments are to be by cheque, made payable to "${co}". ${co} will not be held liable for any cash/ cash cheques issued to representatives unless payments are made at the office with official receipt issued with authorized signatory and company stamp. Payments can also be made via Paynow to our ${esc(CONFIG.companyReg)}, please kindly indicate your project address when making Paynow.</li>
+      <li>Any additional item not included in the Contract shall be considered a variation and shall be recorded in a Variations Order. The Variations Order must be confirmed before the variation works commence.</li>
+      <li>Upon confirmation of Works, ${co} shall handover the premises to the Client and an inspection shall be carried out together with the client. Any areas requiring rectifications or touch-ups relating to the work done shall be recorded.</li>
+      <li>The quote prices have a validity period of 30 days. This agreement only becomes valid when endorsed by both the Client and the ${co} Rep. For Contract Sum which exceeds ${threshold}, the Agreement must be countersigned by a member of ${co} Management for it to be deemed valid.</li>
+      <li>Any perspective drawings that are presented are artist's impressions to assist in visualization of the design concept. There will be differences from the actual as-built due to, but not limited to, printing, site constraints &amp; material selected. The perspectives shown shall not be construed as a warranty to the final as-built.</li>
+      <li>Any fabrication details that are presented will serve as a guide only. Any dimensions indicated are close approximations as factors such as site constraints &amp; fabrication tolerances will affect the actual as-built dimensions.</li>
+      <li>Business is Non-GST registered, Prices are Nett.</li>
+      <li>The terms and circumstances of this agreement are confidential between the parties and shall not be disclosed to anybody else.</li>
+    </ol>
+
+    <div class="doc-tc-sig-note">Your Sincerely,<br><strong>${co}</strong></div>
     <div class="doc-footer-sigs">
       <div><div class="doc-sig-line">Authorised Signature &amp; Company Stamp</div></div>
       <div><div class="doc-sig-line">Client Acceptance Signature &amp; Date</div></div>
