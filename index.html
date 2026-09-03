@@ -506,6 +506,9 @@ const SAMPLE_CATALOG = [
 ══════════════════════════════════════════════════════ */
 let catalog   = [];
 let lineItems = [];
+// Persists collapse/expand state across renderLineItems() rebuilds
+let catCollapsed  = new Map(); // catId -> bool
+let areaCollapsed = new Map(); // "catId::areaId" -> bool
 let previewMode = 'designer'; // 'designer' | 'customer'
 
 // Global picker cart — accumulates selections across all open pickers
@@ -718,15 +721,17 @@ function renderLineItems(){
     const catLIs=lineItems.filter(li=>!li.is_custom&&li.category_id===catId&&li.included);
     const singleGeneral=areas.length===1&&areas[0]==='General';
 
-    const sec=document.createElement('div');sec.className='cat-section';
+    const sec=document.createElement('div');sec.className='cat-section';sec.dataset.catId=catId;
 
     // ── Category header ──────────────────────────────
     const hdr=document.createElement('div');hdr.className='cat-sec-header';
     const countTxt=catLIs.length?`${catLIs.length} item${catLIs.length!==1?'s':''}`:'-';
     hdr.innerHTML=`<span class="cat-sec-title">${esc(catId)}</span><span class="cat-sec-count">${countTxt}</span><span class="cat-sec-chevron">▾</span>`;
-    hdr.addEventListener('click',()=>sec.classList.toggle('collapsed'));
-    // Collapse categories with no items selected and no defaults
-    if(!catLIs.length)sec.classList.add('collapsed');
+    hdr.addEventListener('click',()=>{catCollapsed.set(catId,sec.classList.toggle('collapsed'));});
+    // Collapse categories with no items selected and no defaults — but only decide this
+    // the first time we see a category; afterwards respect whatever the user last set.
+    if(!catCollapsed.has(catId))catCollapsed.set(catId,!catLIs.length);
+    if(catCollapsed.get(catId))sec.classList.add('collapsed');
 
     const body=document.createElement('div');body.className='cat-sec-body';
 
@@ -747,10 +752,13 @@ function renderLineItems(){
   // ── Custom items ─────────────────────────────────
   const customs=lineItems.filter(li=>li.is_custom);
   if(customs.length){
-    const sec=document.createElement('div');sec.className='cat-section';
+    const customKey='__custom__';
+    const sec=document.createElement('div');sec.className='cat-section';sec.dataset.catId=customKey;
     const hdr=document.createElement('div');hdr.className='cat-sec-header';
     hdr.innerHTML=`<span class="cat-sec-title" style="color:var(--warning)">Custom Items</span><span class="cat-sec-count">${customs.length}</span><span class="cat-sec-chevron">▾</span>`;
-    hdr.addEventListener('click',()=>sec.classList.toggle('collapsed'));
+    hdr.addEventListener('click',()=>{catCollapsed.set(customKey,sec.classList.toggle('collapsed'));});
+    if(!catCollapsed.has(customKey))catCollapsed.set(customKey,false);
+    if(catCollapsed.get(customKey))sec.classList.add('collapsed');
     const body=document.createElement('div');body.className='cat-sec-body';
     customs.forEach(li=>body.appendChild(renderCustomRow(li)));
     sec.appendChild(hdr);sec.appendChild(body);container.appendChild(sec);
@@ -765,14 +773,18 @@ function renderLineItems(){
 }
 
 function buildAreaSub(catId,areaId){
-  const sub=document.createElement('div');sub.className='area-sub';
+  const sub=document.createElement('div');sub.className='area-sub';sub.dataset.catId=catId;sub.dataset.areaId=areaId;
+  const areaKey=catId+'::'+areaId;
   const areaLIs=lineItems.filter(li=>!li.is_custom&&li.category_id===catId&&li.area_id===areaId);
   const includedN=areaLIs.filter(li=>li.included).length;
 
   const hdr=document.createElement('div');hdr.className='area-sub-header';
   hdr.innerHTML=`<span class="area-sub-name">${esc(areaId)}</span><span class="area-sub-count">${includedN?includedN+' selected':''}</span><span class="area-sub-chevron">▾</span>`;
-  hdr.addEventListener('click',()=>sub.classList.toggle('collapsed'));
-  if(!includedN)sub.classList.add('collapsed');
+  hdr.addEventListener('click',()=>{areaCollapsed.set(areaKey,sub.classList.toggle('collapsed'));});
+  // Collapse areas with nothing selected — but only decide this the first time we see
+  // an area; afterwards respect whatever the user last set.
+  if(!areaCollapsed.has(areaKey))areaCollapsed.set(areaKey,!includedN);
+  if(areaCollapsed.get(areaKey))sub.classList.add('collapsed');
 
   const body=document.createElement('div');body.className='area-sub-body';
   const visibleLIs=_loadedView?areaLIs.filter(li=>li.included):areaLIs;
@@ -1330,6 +1342,7 @@ function populateFromPayload(data){
   document.getElementById('notes').value=p.notes||'';
   // Rebuild line items from saved payload only — no defaults
   _loadedView = true;
+  catCollapsed.clear();areaCollapsed.clear();
   initLineItems();
   lineItems.forEach(li=>{ li.included=false; }); // clear all catalog defaults
   const saved=data.line_items||[];
@@ -1595,6 +1608,7 @@ document.getElementById('btnClear').addEventListener('click',()=>{
   document.getElementById('loadRef').value='';
   _loadedCreatedAt=null;
   _loadedView=false;
+  catCollapsed.clear();areaCollapsed.clear();
   initLineItems();
   setStatus('idle','Ready');
 });
@@ -1610,10 +1624,12 @@ document.getElementById('btnAddPending').addEventListener('click',()=>{
 
 // Expand / Collapse all
 document.getElementById('btnExpandAll').addEventListener('click',()=>{
-  document.querySelectorAll('.cat-section,.area-sub').forEach(el=>el.classList.remove('collapsed'));
+  document.querySelectorAll('.cat-section').forEach(el=>{el.classList.remove('collapsed');catCollapsed.set(el.dataset.catId,false);});
+  document.querySelectorAll('.area-sub').forEach(el=>{el.classList.remove('collapsed');areaCollapsed.set(el.dataset.catId+'::'+el.dataset.areaId,false);});
 });
 document.getElementById('btnCollapseAll').addEventListener('click',()=>{
-  document.querySelectorAll('.cat-section,.area-sub').forEach(el=>el.classList.add('collapsed'));
+  document.querySelectorAll('.cat-section').forEach(el=>{el.classList.add('collapsed');catCollapsed.set(el.dataset.catId,true);});
+  document.querySelectorAll('.area-sub').forEach(el=>{el.classList.add('collapsed');areaCollapsed.set(el.dataset.catId+'::'+el.dataset.areaId,true);});
 });
 
 /* ══════════════════════════════════════════════════════
