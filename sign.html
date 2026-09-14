@@ -109,14 +109,44 @@ a{color:#8B6F47}
 .doc-summary-table tr.grand td{padding:8px 6px}
 .doc-summary-table tr.grand td.amt{color:#B8945A}
 
-/* ── SIGNATORY (summary page + T&C) ── */
-.doc-sig-block{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:32px}
-.doc-sig-side p{font-size:11.5px;margin-bottom:4px}
-.doc-sig-side .who{font-weight:700}
-.doc-sig-canvas-slot{height:44px;border-bottom:1px solid #C8C0B4;display:flex;align-items:flex-end;margin:18px 0 4px}
-.doc-sig-canvas-slot img{max-height:42px;max-width:100%;object-fit:contain}
-.doc-sig-meta{font-size:10.5px;color:#6B5E52;line-height:1.6}
-.doc-sig-meta b{color:#1a1a1a;font-weight:600}
+/* ===== UNIFIED SIGN-OFF BLOCK (grid-locked rows = guaranteed alignment) ===== */
+.doc-sign-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:auto auto auto;
+  column-gap:36px;
+  margin-top:28px;
+  padding-top:22px;
+  border-top:1px solid #E8E2D9;
+}
+.doc-sign-grid.tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+
+.doc-sign-label{
+  grid-row:1;
+  font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+  color:#B8945A;margin-bottom:8px;
+}
+.doc-sign-pad{
+  grid-row:2;
+  height:48px;
+  border-bottom:1.5px solid #C8C0B4;
+  display:flex;align-items:flex-end;justify-content:flex-start;
+  overflow:hidden;margin-bottom:8px;
+}
+.doc-sign-pad img{max-height:46px;max-width:100%;object-fit:contain;display:block}
+.doc-sign-name{
+  grid-row:3;
+  font-size:11.5px;font-weight:700;color:#1a1a1a;line-height:1.4;
+}
+.doc-sign-role{font-size:9.5px;font-weight:400;color:#9E8E82;margin-top:1px}
+.doc-sign-date{
+  grid-row:4;
+  font-size:10px;color:#6B5E52;margin-top:8px;padding-top:6px;
+  border-top:1px dashed #E8E2D9;
+}
+.doc-sign-date b{color:#1a1a1a;font-weight:600}
+
+.doc-sign-col{display:contents} /* lets children participate directly in the grid rows */
 
 /* ── T&C ── */
 .doc-tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
@@ -131,9 +161,6 @@ a{color:#8B6F47}
 .doc-tc-payrow+.doc-tc-payrow{border-top:1px dashed #E8E2D9}
 .doc-tc-amt{font-family:'DM Mono',monospace;font-weight:600;color:#7B1818;white-space:nowrap}
 .doc-tc-sig-note{margin-top:22px;font-size:11px;line-height:1.6}
-.doc-footer-sigs{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:10px}
-.doc-sig-line{border-top:1px solid #C8C0B4;padding-top:4px;font-size:9.5px;color:#9E8E82;margin-top:36px}
-.doc-sig-line img{display:block;max-height:38px;max-width:100%;object-fit:contain;margin-bottom:4px}
 
 /* ── SIGNING SECTION ── */
 .sign-card{background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(28,23,20,.10);padding:28px 32px;margin-bottom:20px}
@@ -174,8 +201,8 @@ canvas#sigPad{display:block;width:100%;touch-action:none}
   .doc-wrap,.sign-card{padding:20px 16px}
   .doc-letterhead{grid-template-columns:1fr}
   .doc-client-grid{grid-template-columns:1fr}
-  .doc-sig-block{grid-template-columns:1fr}
-  .doc-footer-sigs{grid-template-columns:1fr;gap:20px}
+  .doc-sign-grid{grid-template-columns:1fr;row-gap:22px}
+  .doc-sign-grid .doc-sign-col{display:block}
   .main{padding:16px 10px 40px}
 }
 </style>
@@ -443,17 +470,18 @@ function buildQuoteHTML(data) {
         </tbody>
       </table>
 
-      <div class="doc-sig-block">
-        <div class="doc-sig-side">
-          <p class="who">Yours Sincerely,</p>
-          <p>${co}</p>
-          <div class="doc-sig-canvas-slot"></div>
-          <div class="doc-sig-meta">HP: ${esc(CO.phone)}<br>Date: ${today}</div>
+      <div class="doc-sign-grid">
+        <div class="doc-sign-col">
+          <div class="doc-sign-label">Signature — ${co}</div>
+          <div class="doc-sign-pad"></div>
+          <div class="doc-sign-name">${co}</div>
+          <div class="doc-sign-date">Date: <b>${today}</b></div>
         </div>
-        <div class="doc-sig-side">
-          <p class="who">I/We, hereby agree the above,</p>
-          <div class="doc-sig-canvas-slot sig-slot"><img class="sig-slot-img" style="display:none"></div>
-          <div class="doc-sig-meta">Name: <b class="sig-slot-name">—</b><br>Date: ${today}</div>
+        <div class="doc-sign-col">
+          <div class="doc-sign-label">Signature — Client</div>
+          <div class="doc-sign-pad"><img class="sig-slot-img" style="display:none"></div>
+          <div class="doc-sign-name"><span class="sig-slot-name">Awaiting signature…</span></div>
+          <div class="doc-sign-date">Date: <b class="sig-slot-date">—</b></div>
         </div>
       </div>
     </div>
@@ -465,12 +493,18 @@ function buildQuoteHTML(data) {
       </div>
       <ol class="doc-tc-list">${tcListHTML}</ol>
 
-      <div class="doc-tc-sig-note">Your Sincerely,<br><strong>${co}</strong></div>
-      <div class="doc-footer-sigs">
-        <div><div class="doc-sig-line">Authorised Signature &amp; Company Stamp</div></div>
-        <div>
-          <div class="doc-sig-canvas-slot sig-slot" style="height:38px"><img class="sig-slot-img" style="display:none"></div>
-          <div class="doc-sig-line">Client Acceptance Signature &amp; Date</div>
+      <div class="doc-sign-grid tc">
+        <div class="doc-sign-col">
+          <div class="doc-sign-label">Signature — Authorised Representative</div>
+          <div class="doc-sign-pad"></div>
+          <div class="doc-sign-name">${co}<span class="doc-sign-role"><br>Company Stamp</span></div>
+          <div class="doc-sign-date">Date: <b>${today}</b></div>
+        </div>
+        <div class="doc-sign-col">
+          <div class="doc-sign-label">Signature — Client</div>
+          <div class="doc-sign-pad"><img class="sig-slot-img" style="display:none"></div>
+          <div class="doc-sign-name"><span class="sig-slot-name">Awaiting signature…</span></div>
+          <div class="doc-sign-date">Date: <b class="sig-slot-date">—</b></div>
         </div>
       </div>
     </div>
@@ -522,6 +556,14 @@ function updateSigPreview() {
     document.querySelectorAll('.sig-slot-img').forEach(img => { img.src = dataUrl; img.style.display = ''; });
   } else {
     document.querySelectorAll('.sig-slot-img').forEach(img => { img.style.display = 'none'; img.src=''; });
+  }
+  if (name || hasSig) {
+    const now = new Date();
+    const stampDate = now.toLocaleDateString('en-SG', {day:'2-digit',month:'short',year:'numeric'});
+    const stampTime = now.toLocaleTimeString('en-SG', {hour:'2-digit',minute:'2-digit',hour12:true}).toLowerCase();
+    document.querySelectorAll('.sig-slot-date').forEach(el => el.textContent = `${stampDate}, ${stampTime}`);
+  } else {
+    document.querySelectorAll('.sig-slot-date').forEach(el => el.textContent = '—');
   }
 }
 
