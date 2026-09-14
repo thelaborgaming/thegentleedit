@@ -330,8 +330,6 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .doc-totals-table tr.grand .tv{font-size:16px;color:#B8945A}
 .doc-notes-wrap{margin-top:14px;padding:10px 12px;background:#FAF8F5;border-radius:6px;border-left:3px solid #B8945A;font-size:11px;color:#6B5E52;white-space:pre-wrap}
 .doc-footer{margin-top:20px;padding-top:12px;border-top:1px solid #E8E2D9;display:flex;justify-content:space-between;align-items:flex-end;font-size:9.5px;color:#9E8E82}
-.doc-footer-sigs{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:10px}
-.doc-sig-line{border-top:1px solid #C8C0B4;padding-top:4px;font-size:9.5px;color:#9E8E82;margin-top:36px}
 .doc-watermark-designer{display:none}
 /* Designer copy watermark label */
 .doc.designer-copy .doc-watermark-designer{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(184,148,90,.07);pointer-events:none;white-space:nowrap;letter-spacing:.15em;z-index:0}
@@ -347,11 +345,48 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .doc-summary-table tr.grand{background:#EFE6D3}
 .doc-summary-table tr.grand td{font-style:normal;font-weight:700;font-size:14px;padding:8px 6px;color:#6B4F2E}
 .doc-summary-table tr.grand td.amt{color:#B8945A}
-.doc-sig-block{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:32px}
-.doc-sig-side p{font-size:11.5px;margin-bottom:4px}
-.doc-sig-side .who{font-weight:700}
-.doc-sig-canvas-slot{height:40px;border-bottom:1px solid #C8C0B4;margin:18px 0 4px}
-.doc-sig-meta{font-size:10.5px;color:#6B5E52;line-height:1.6}
+/* ===== UNIFIED SIGN-OFF BLOCK (grid-locked rows = guaranteed alignment) ===== */
+.doc-sign-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:auto auto auto;
+  column-gap:36px;
+  margin-top:28px;
+  padding-top:22px;
+  border-top:1px solid #E8E2D9;
+}
+.doc-sign-grid.tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+
+.doc-sign-label{
+  grid-row:1;
+  font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+  color:#B8945A;margin-bottom:8px;
+}
+.doc-sign-pad{
+  grid-row:2;
+  height:48px;
+  border-bottom:1.5px solid #C8C0B4;
+  display:flex;align-items:flex-end;justify-content:flex-start;
+  overflow:hidden;margin-bottom:8px;
+}
+.doc-sign-pad img{max-height:46px;max-width:100%;object-fit:contain;display:block}
+.doc-sign-name{
+  grid-row:3;
+  font-size:11.5px;font-weight:700;color:#1a1a1a;line-height:1.4;
+}
+.doc-sign-role{font-size:9.5px;font-weight:400;color:#9E8E82;margin-top:1px}
+.doc-sign-date{
+  grid-row:4;
+  font-size:10px;color:#6B5E52;margin-top:8px;padding-top:6px;
+  border-top:1px dashed #E8E2D9;
+}
+.doc-sign-date b{color:#1a1a1a;font-weight:600}
+
+.doc-sign-col{display:contents} /* lets children participate directly in the grid rows */
+@media(max-width:600px){
+  .doc-sign-grid{grid-template-columns:1fr;row-gap:22px}
+  .doc-sign-grid .doc-sign-col{display:block}
+}
 
 /* ─── TERMS & CONDITIONS PAGE ────────────────────────── */
 .doc-tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
@@ -1720,9 +1755,19 @@ function buildDocHTML(payload, mode){
         ${discountRowHTML}
         <tr class="grand"><td colspan="2" style="text-align:right">GRAND TOTAL:</td><td class="amt">${fmt(summaryGrandTotal)}</td></tr>
       </tbody></table>
-      <div class="doc-sig-block">
-        <div class="doc-sig-side"><p class="who">Yours Sincerely,</p><p>${esc(CONFIG.companyName)}</p><div class="doc-sig-canvas-slot"></div><div class="doc-sig-meta">HP: ${esc(CONFIG.phone)}<br>Date: ${today}</div></div>
-        <div class="doc-sig-side"><p class="who">I/We, hereby agree the above,</p><div class="doc-sig-canvas-slot"></div><div class="doc-sig-meta">Name: <b>${esc(p.client_name||'—')}</b><br>Date: ${today}</div></div>
+      <div class="doc-sign-grid">
+        <div class="doc-sign-col">
+          <div class="doc-sign-label">Signature — ${esc(CONFIG.companyName)}</div>
+          <div class="doc-sign-pad"></div>
+          <div class="doc-sign-name">${esc(CONFIG.companyName)}</div>
+          <div class="doc-sign-date">Date: <b>${today}</b></div>
+        </div>
+        <div class="doc-sign-col">
+          <div class="doc-sign-label">Signature — Client</div>
+          <div class="doc-sign-pad"></div>
+          <div class="doc-sign-name">${esc(p.client_name||'—')}</div>
+          <div class="doc-sign-date">Date: <b>${today}</b></div>
+        </div>
       </div>
     </div>
   </div>`+buildTermsHTML(payload);
@@ -1746,6 +1791,7 @@ function buildTermsHTML(payload){
   }).join('');
   const co=esc(CONFIG.companyName);
   const threshold=fmt(CONFIG.managementCountersignThreshold).replace(/\.00$/,'');
+  const today=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
 
   // 10 clauses — same scope/order as the original, wording refined using the clearer
   // phrasing from the 22-clause revised draft (grace period + interest rate on late
@@ -1774,10 +1820,19 @@ function buildTermsHTML(payload){
     </div>
     <ol class="doc-tc-list">${tcListHTML}</ol>
 
-    <div class="doc-tc-sig-note">Your Sincerely,<br><strong>${co}</strong></div>
-    <div class="doc-footer-sigs">
-      <div><div class="doc-sig-line">Authorised Signature &amp; Company Stamp</div></div>
-      <div><div class="doc-sig-line">Client Acceptance Signature &amp; Date</div></div>
+    <div class="doc-sign-grid tc">
+      <div class="doc-sign-col">
+        <div class="doc-sign-label">Signature — Authorised Representative</div>
+        <div class="doc-sign-pad"></div>
+        <div class="doc-sign-name">${co}<span class="doc-sign-role"><br>Company Stamp</span></div>
+        <div class="doc-sign-date">Date: <b>${today}</b></div>
+      </div>
+      <div class="doc-sign-col">
+        <div class="doc-sign-label">Signature — Client</div>
+        <div class="doc-sign-pad"></div>
+        <div class="doc-sign-name">${esc(p.client_name||'—')}</div>
+        <div class="doc-sign-date">Date: <b>${today}</b></div>
+      </div>
     </div>
   </div>`;
 }
@@ -1877,8 +1932,6 @@ body{font-family:Arial,Helvetica,sans-serif;background:#fff}
 .doc-totals-table tr.grand .tv{font-size:16px;color:#B8945A}
 .doc-notes-wrap{margin-top:14px;padding:10px 12px;background:#FAF8F5;border-radius:6px;border-left:3px solid #B8945A;font-size:11px;color:#6B5E52;white-space:pre-wrap}
 .doc-footer{margin-top:20px;padding-top:12px;border-top:1px solid #E8E2D9;display:flex;justify-content:space-between;align-items:flex-end;font-size:9.5px;color:#9E8E82}
-.doc-footer-sigs{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:10px}
-.doc-sig-line{border-top:1px solid #C8C0B4;padding-top:4px;font-size:9.5px;color:#9E8E82;margin-top:36px}
 .doc-watermark-designer{display:none}
 .doc.designer-copy .doc-watermark-designer{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(184,148,90,.07);pointer-events:none;white-space:nowrap;letter-spacing:.15em;z-index:0}
 
@@ -1893,11 +1946,48 @@ body{font-family:Arial,Helvetica,sans-serif;background:#fff}
 .doc-summary-table tr.grand{background:#EFE6D3}
 .doc-summary-table tr.grand td{font-style:normal;font-weight:700;font-size:14px;padding:8px 6px;color:#6B4F2E}
 .doc-summary-table tr.grand td.amt{color:#B8945A}
-.doc-sig-block{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:32px}
-.doc-sig-side p{font-size:11.5px;margin-bottom:4px}
-.doc-sig-side .who{font-weight:700}
-.doc-sig-canvas-slot{height:40px;border-bottom:1px solid #C8C0B4;margin:18px 0 4px}
-.doc-sig-meta{font-size:10.5px;color:#6B5E52;line-height:1.6}
+/* ===== UNIFIED SIGN-OFF BLOCK (grid-locked rows = guaranteed alignment) ===== */
+.doc-sign-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:auto auto auto;
+  column-gap:36px;
+  margin-top:28px;
+  padding-top:22px;
+  border-top:1px solid #E8E2D9;
+}
+.doc-sign-grid.tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+
+.doc-sign-label{
+  grid-row:1;
+  font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+  color:#B8945A;margin-bottom:8px;
+}
+.doc-sign-pad{
+  grid-row:2;
+  height:48px;
+  border-bottom:1.5px solid #C8C0B4;
+  display:flex;align-items:flex-end;justify-content:flex-start;
+  overflow:hidden;margin-bottom:8px;
+}
+.doc-sign-pad img{max-height:46px;max-width:100%;object-fit:contain;display:block}
+.doc-sign-name{
+  grid-row:3;
+  font-size:11.5px;font-weight:700;color:#1a1a1a;line-height:1.4;
+}
+.doc-sign-role{font-size:9.5px;font-weight:400;color:#9E8E82;margin-top:1px}
+.doc-sign-date{
+  grid-row:4;
+  font-size:10px;color:#6B5E52;margin-top:8px;padding-top:6px;
+  border-top:1px dashed #E8E2D9;
+}
+.doc-sign-date b{color:#1a1a1a;font-weight:600}
+
+.doc-sign-col{display:contents} /* lets children participate directly in the grid rows */
+@media(max-width:600px){
+  .doc-sign-grid{grid-template-columns:1fr;row-gap:22px}
+  .doc-sign-grid .doc-sign-col{display:block}
+}
 
 .doc-tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
 @media print{.doc-tc{page-break-before:always;border-top:none;margin-top:0;padding-top:0}}
