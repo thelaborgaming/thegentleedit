@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,300&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
 <style>
 /* ─── LAYOUT HEIGHTS (for sticky calc) ──────────────── */
-:root{--header-h:62px;--toolbar-h:54px;--cat-h:48px;}
+:root{--header-h:62px;--toolbar-h:54px;--search-h:41px;--cat-h:48px;}
 
 /* ─── VARIABLES ─────────────────────────────────────── */
 :root[data-theme="light"]{
@@ -50,7 +50,31 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 
 /* ─── LAYOUT ────────────────────────────────────────── */
 .app-body{max-width:1380px;margin:0 auto;padding:22px 18px;display:grid;grid-template-columns:1fr 306px;gap:18px;align-items:start}
-@media(max-width:940px){.app-body{grid-template-columns:1fr}}
+@media(max-width:940px){
+  .app-body{grid-template-columns:1fr}
+  /* Below tablet-portrait width there isn't enough viewport height to spend ~165px
+     on four stacked sticky bars (page header + toolbar + category + area). Drop the
+     three inner levels to static so content isn't squeezed, and this also sidesteps
+     the sticky-offset gap/overlap bug entirely on the devices where it's tightest. */
+  .li-toolbar,.cat-sec-header,.area-sub-header{position:static}
+  .right-sticky{position:static;top:auto}
+  .mobile-total-bar{display:flex}
+  .app-body{padding-bottom:76px} /* clears the fixed mobile total bar so it never covers the last row */
+}
+@media(max-width:600px){
+  /* Phone-width fix: the fixed-px input grids (built for a wide desktop row) no
+     longer fit a 375–430px screen and were overflowing/forcing horizontal scroll
+     inside each line item. Reflow them into even columns that wrap instead. */
+  .item-inputs{grid-template-columns:repeat(3,1fr)}
+  .item-dim-row{grid-template-columns:repeat(2,1fr)}
+  .custom-g1{grid-template-columns:1fr}
+  .custom-g2{grid-template-columns:repeat(4,1fr)}
+  .li-toolbar{flex-direction:column;align-items:stretch}
+  .li-btns{flex-wrap:wrap}
+  .li-btns .btn{flex:1 1 auto;justify-content:center;min-width:0!important}
+  /* Larger touch target for the line-item checkbox without changing its visual size */
+  .item-check{padding:8px 8px 8px 0;margin:-8px 0 -8px -8px}
+}
 
 /* ─── PANELS ────────────────────────────────────────── */
 .panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:clip;transition:background .3s,border-color .3s}
@@ -81,7 +105,11 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .btn-icon:hover{color:var(--danger)}
 
 /* ─── LINE ITEMS TOOLBAR ────────────────────────────── */
-.li-toolbar{background:var(--bg-toolbar);border-bottom:1px solid var(--border);padding:10px 17px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px;position:sticky;top:var(--header-h);z-index:21;}
+.li-toolbar{background:var(--bg-toolbar);border-bottom:1px solid var(--border);padding:10px 17px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px;position:sticky;top:var(--header-h);z-index:22;}
+.li-search-row{padding:8px 17px;background:var(--bg-toolbar);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;position:sticky;top:calc(var(--header-h) + var(--toolbar-h));z-index:21;}
+.li-search-row input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12.5px;color:var(--text);font-family:inherit;outline:none}
+.li-search-row input:focus{border-color:var(--accent)}
+@media(max-width:940px){.li-search-row{position:static}}
 .btn-link{background:none;border:none;padding:0;font-size:10px;color:var(--accent);cursor:pointer;font-family:inherit;text-decoration:underline;line-height:1}
 .btn-link:hover{opacity:.7}
 .li-title{font-family:var(--font-display);font-weight:500;font-size:14.5px}
@@ -91,7 +119,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 /* ─── CATEGORY SECTION (top level, bold) ────────────── */
 .cat-section{border-top:2px solid var(--border)}
 .cat-section:first-child{border-top:none}
-.cat-sec-header{display:flex;align-items:center;gap:10px;padding:12px 17px;background:var(--bg-card);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;position:sticky;top:calc(var(--header-h) + var(--toolbar-h));z-index:20;}
+.cat-sec-header{display:flex;align-items:center;gap:10px;padding:12px 17px;background:var(--bg-card);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;position:sticky;top:calc(var(--header-h) + var(--toolbar-h) + var(--search-h));z-index:20;}
 .cat-sec-title{font-family:var(--font-body);font-weight:700;font-size:13px;flex:1;color:var(--text-primary);letter-spacing:.03em;text-transform:uppercase}
 .cat-sec-count{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);background:var(--bg-toolbar);padding:2px 7px;border-radius:10px;border:1px solid var(--border)}
 .cat-sec-chevron{font-size:10px;color:var(--text-muted);transition:transform .2s;flex-shrink:0}
@@ -100,7 +128,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 
 /* ─── AREA SUB-SECTION ───────────────────────────────── */
 .area-sub{border-top:1px solid var(--border)}
-.area-sub-header{display:flex;align-items:center;gap:8px;padding:7px 17px 7px 24px;background:var(--bg-toolbar);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;position:sticky;top:calc(var(--header-h) + var(--toolbar-h) + var(--cat-h));z-index:19;}
+.area-sub-header{display:flex;align-items:center;gap:8px;padding:7px 17px 7px 24px;background:var(--bg-toolbar);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;position:sticky;top:calc(var(--header-h) + var(--toolbar-h) + var(--search-h) + var(--cat-h));z-index:19;}
 .area-sub-name{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--text-secondary);flex:1}
 .area-sub-count{font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)}
 .area-sub-chevron{font-size:9px;color:var(--text-muted);transition:transform .2s}
@@ -202,6 +230,12 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 
 /* ─── RIGHT SIDEBAR ─────────────────────────────────── */
 .right-sticky{position:sticky;top:74px}
+.mobile-total-bar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--bg-card);border-top:1px solid var(--border);box-shadow:0 -4px 16px rgba(0,0,0,.12);padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom));align-items:center;gap:12px;}
+.mtb-info{display:flex;flex-direction:column;line-height:1.2}
+.mtb-count{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
+.mtb-label{font-size:10px;color:var(--text-muted)}
+.mtb-amount{font-family:'DM Mono',monospace;font-weight:700;font-size:16px;color:var(--text);flex:1;text-align:right}
+#mtbPreviewBtn{padding:8px 16px;font-size:12.5px;white-space:nowrap}
 .sum-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)}
 .sum-row:last-of-type{border-bottom:none}
 .sum-label{font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em}
@@ -281,6 +315,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .doc-table tr:last-child td{border-bottom:none}
 .doc-cat-row td{background:#F0EBE0;font-weight:700;font-size:10px;color:#6B5E52;text-transform:uppercase;letter-spacing:.06em;padding:5px 7px;border-bottom:1px solid #D4C9B8}
 .doc-area-row td{font-size:10px;font-style:italic;color:#9E8E82;padding:3px 7px;background:#FAF8F5;border-bottom:1px solid #EDE8DF}
+.doc-cat-subtotal td{background:#EFE6D3;font-weight:700;font-size:11px;color:#6B4F2E;padding:6px 7px;border-bottom:2px solid #D9C79E}
 .doc-item-name{font-weight:500;line-height:1.35;color:#1a1a1a;font-size:11.5px}
 .doc-item-dim{font-size:10px;color:#9E8E82;margin-top:2px}
 .doc-item-remark{font-size:10px;color:#7B1818;font-style:italic;margin-top:2px}
@@ -300,6 +335,38 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .doc-watermark-designer{display:none}
 /* Designer copy watermark label */
 .doc.designer-copy .doc-watermark-designer{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(184,148,90,.07);pointer-events:none;white-space:nowrap;letter-spacing:.15em;z-index:0}
+
+/* ─── SUMMARY PAGE ───────────────────────────────────── */
+.doc-summary{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+.doc-summary-title{font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.06em;text-decoration:underline;text-underline-offset:3px;margin-bottom:14px}
+.doc-summary-table{width:100%;border-collapse:collapse;font-size:12px;font-style:italic}
+.doc-summary-table td{padding:4px 6px}
+.doc-summary-table td.num{width:24px;font-style:normal;color:#9E8E82}
+.doc-summary-table td.amt{text-align:right;font-family:monospace;font-style:normal;white-space:nowrap;width:100px}
+.doc-summary-table tr.sub td{padding-top:10px;font-style:normal;font-weight:600;border-top:1px solid #E8E2D9}
+.doc-summary-table tr.grand{background:#EFE6D3}
+.doc-summary-table tr.grand td{font-style:normal;font-weight:700;font-size:14px;padding:8px 6px;color:#6B4F2E}
+.doc-summary-table tr.grand td.amt{color:#B8945A}
+.doc-sig-block{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.doc-sig-side p{font-size:11.5px;margin-bottom:4px}
+.doc-sig-side .who{font-weight:700}
+.doc-sig-canvas-slot{height:40px;border-bottom:1px solid #C8C0B4;margin:18px 0 4px}
+.doc-sig-meta{font-size:10.5px;color:#6B5E52;line-height:1.6}
+
+/* ─── TERMS & CONDITIONS PAGE ────────────────────────── */
+.doc-tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+@media print{.doc-tc{page-break-before:always;border-top:none;margin-top:0;padding-top:0}}
+.doc-tc-header{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:12px;margin-bottom:16px;border-bottom:2px solid #B8945A}
+.doc-tc-title{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:#1a1a1a;text-decoration:underline;text-underline-offset:3px}
+.doc-tc-ref{font-family:monospace;font-size:10.5px;color:#9E8E82}
+.doc-tc-list{list-style:none;counter-reset:tc;font-size:11px;line-height:1.6;color:#1a1a1a;margin:0;padding:0}
+.doc-tc-list>li{counter-increment:tc;position:relative;padding-left:22px;margin-bottom:13px}
+.doc-tc-list>li::before{content:counter(tc);position:absolute;left:0;top:0;font-weight:700;color:#B8945A}
+.doc-tc-pay{margin-top:6px;padding:8px 10px;background:#FAF8F5;border-radius:6px;border:1px solid #E8E2D9}
+.doc-tc-payrow{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+.doc-tc-payrow+.doc-tc-payrow{border-top:1px dashed #E8E2D9}
+.doc-tc-amt{font-family:monospace;font-weight:600;color:#7B1818;white-space:nowrap}
+.doc-tc-sig-note{margin-top:22px;font-size:11px;line-height:1.6}
 
 /* ─── LOADER ────────────────────────────────────────── */
 .loader-wrap{padding:36px 18px;text-align:center;color:var(--text-muted);font-size:12.5px}
@@ -362,6 +429,10 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
           <button class="btn btn-ghost" id="btnRemoveAll" style="color:var(--danger)">🗑 Remove all</button>
         </div>
       </div>
+      <div class="li-search-row">
+        <input type="text" id="catalogSearch" placeholder="🔎 Search items by name…">
+        <button class="btn-link" id="btnClearSearch" style="display:none">Clear</button>
+      </div>
       <div id="lineItemsContainer">
         <div class="loader-wrap"><div class="spin"></div><br>Loading catalog…</div>
       </div>
@@ -398,6 +469,13 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
   </div>
 </div>
 
+<!-- Mobile-only sticky running total — desktop/tablet keeps the full Summary sidebar instead -->
+<div class="mobile-total-bar" id="mobileTotalBar">
+  <div class="mtb-info"><span class="mtb-count" id="mtbCount">0 items</span><span class="mtb-label">Total</span></div>
+  <div class="mtb-amount" id="mtbAmount">$0.00</div>
+  <button class="btn btn-primary" id="mtbPreviewBtn">Preview →</button>
+</div>
+
 <!-- PREVIEW MODAL -->
 <div class="preview-overlay" id="previewOverlay">
   <div class="preview-modal">
@@ -407,6 +485,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
         <div class="preview-tabs">
           <button class="ptab active" data-copy="designer" id="tabDesigner">Designer Copy</button>
           <button class="ptab" data-copy="customer" id="tabCustomer">Customer Copy</button>
+          <button class="ptab" data-copy="vo" id="tabVo" style="display:none">Variation Orders</button>
         </div>
         <button class="preview-close" id="previewClose">✕</button>
       </div>
@@ -441,6 +520,15 @@ const CONFIG = {
   address:     '61 Ubi Road 1, #02-10 Oxley BizHub 1, Singapore 408727',
   phone:       '+65 8987 8199',
   email:       'hello@thegentleedit.sg',
+  // Terms & Conditions — progressive payment split (must total 100)
+  paymentTerms: [
+    {pct:10, label:'10% deposit upon signing of quotation'},
+    {pct:40, label:'40% upon commencement of work'},
+    {pct:45, label:'45% upon commencement carpentry measurements'},
+    {pct:5,  label:'5% after completion of work and satisfied after 7 days'},
+  ],
+  // Contract sum above which management countersignature is required
+  managementCountersignThreshold: 150000,
 };
 
 /* ══════════════════════════════════════════════════════
@@ -698,7 +786,48 @@ function updateSummary(){
   document.getElementById('sumProfit').style.color=profit>=0?'var(--pl-pos)':'var(--pl-neg)';
   document.getElementById('sumMarginPct').textContent=pct(margin);
   document.getElementById('marginBar').style.width=Math.max(0,Math.min(100,margin))+'%';
+  const mtb=document.getElementById('mobileTotalBar');
+  if(mtb){
+    document.getElementById('mtbAmount').textContent=fmt(totalAmt);
+    document.getElementById('mtbCount').textContent=active.length+' item'+(active.length===1?'':'s');
+  }
 }
+
+/* ══════════════════════════════════════════════════════
+   STICKY OFFSET SYNC
+   The stacked sticky bars (page header → toolbar → category → area) position
+   themselves using --header-h/--toolbar-h/--cat-h, which used to be hardcoded
+   guesses. Any mismatch between a guess and the real rendered height (long
+   category titles wrapping, webfont metrics, mobile font rendering, zoom level)
+   left a visible gap — or an overlap — between two stuck bars. This measures
+   the *actual* rendered heights and writes them back as CSS vars, per category
+   section, so the offsets are always correct on whatever device/viewport it's
+   opened on.
+══════════════════════════════════════════════════════ */
+function syncStickyOffsets(){
+  const header=document.querySelector('.header');
+  const toolbar=document.querySelector('.li-toolbar');
+  const search=document.querySelector('.li-search-row');
+  if(header)document.documentElement.style.setProperty('--header-h',header.offsetHeight+'px');
+  if(toolbar && getComputedStyle(toolbar).position==='sticky')document.documentElement.style.setProperty('--toolbar-h',toolbar.offsetHeight+'px');
+  // Search row is a sticky bar too (see .li-search-row) — folded into the same
+  // measured-not-guessed offset chain as the rest of the sticky stack, for the
+  // same reason --toolbar-h/--cat-h are measured: a hardcoded guess here would
+  // reopen the exact category/area header gap bug this mechanism exists to fix.
+  document.documentElement.style.setProperty('--search-h',(search && getComputedStyle(search).position==='sticky')?search.offsetHeight+'px':'0px');
+  document.querySelectorAll('.cat-section').forEach(sec=>{
+    const hdr=sec.querySelector(':scope > .cat-sec-header');
+    if(hdr)sec.style.setProperty('--cat-h',hdr.offsetHeight+'px');
+  });
+}
+let _stickySyncRaf=null;
+function scheduleStickySync(){
+  if(_stickySyncRaf)cancelAnimationFrame(_stickySyncRaf);
+  _stickySyncRaf=requestAnimationFrame(()=>{_stickySyncRaf=null;syncStickyOffsets();});
+}
+window.addEventListener('resize',scheduleStickySync);
+window.addEventListener('orientationchange',scheduleStickySync);
+if(document.fonts && document.fonts.ready)document.fonts.ready.then(scheduleStickySync);
 
 /* ══════════════════════════════════════════════════════
    RENDER ALL — Category → Area → Items
@@ -772,7 +901,60 @@ function renderLineItems(){
   btn.textContent='＋ Add custom item';btn.addEventListener('click',addCustomItem);
   bar.appendChild(btn);container.appendChild(bar);
   updateSummary();
+  scheduleStickySync();
+  applyCatalogSearch(catalogSearchQuery);
 }
+
+/* ══════════════════════════════════════════════════════
+   CATALOG SEARCH
+   Filters already-rendered item-rows/custom-rows by item_name,
+   hiding empty area/category sections. Doesn't reach into a
+   picker's un-expanded "Add items" list (that's a bigger,
+   separate feature) — this is for quickly finding items already
+   on the quote, or jumping to the right category/area fast.
+══════════════════════════════════════════════════════ */
+let catalogSearchQuery='';
+function applyCatalogSearch(q){
+  q=(q||'').trim().toLowerCase();
+  document.querySelectorAll('.area-sub').forEach(areaEl=>{
+    let anyVisible=!q;
+    areaEl.querySelectorAll('.item-row,.custom-row').forEach(rowEl=>{
+      const li=lineItems.find(x=>x.id===rowEl.dataset.id);
+      const hit=!q||(li&&(li.item_name||'').toLowerCase().includes(q));
+      rowEl.style.display=hit?'':'none';
+      if(hit)anyVisible=true;
+    });
+    areaEl.style.display=anyVisible?'':'none';
+  });
+  document.querySelectorAll('.cat-section').forEach(catEl=>{
+    const areas=catEl.querySelectorAll('.area-sub');
+    const directRows=catEl.querySelectorAll(':scope > .cat-sec-body > .item-row, :scope > .cat-sec-body > .custom-row');
+    let anyVisible=!q;
+    if(areas.length){
+      anyVisible=!q||Array.from(areas).some(a=>a.style.display!=='none');
+    }else if(directRows.length){
+      anyVisible=false;
+      directRows.forEach(rowEl=>{
+        const li=lineItems.find(x=>x.id===rowEl.dataset.id);
+        const hit=!q||(li&&(li.item_name||'').toLowerCase().includes(q));
+        rowEl.style.display=hit?'':'none';
+        if(hit)anyVisible=true;
+      });
+    }
+    catEl.style.display=anyVisible?'':'none';
+  });
+}
+document.getElementById('catalogSearch').addEventListener('input',e=>{
+  catalogSearchQuery=e.target.value;
+  document.getElementById('btnClearSearch').style.display=catalogSearchQuery?'':'none';
+  applyCatalogSearch(catalogSearchQuery);
+});
+document.getElementById('btnClearSearch').addEventListener('click',()=>{
+  catalogSearchQuery='';
+  document.getElementById('catalogSearch').value='';
+  document.getElementById('btnClearSearch').style.display='none';
+  applyCatalogSearch('');
+});
 
 function buildAreaSub(catId,areaId){
   const sub=document.createElement('div');sub.className='area-sub';sub.dataset.catId=catId;sub.dataset.areaId=areaId;
@@ -1275,6 +1457,7 @@ function addCustomItem(){
 ══════════════════════════════════════════════════════ */
 // Stores the original created_at when a quote is loaded for editing
 let _loadedCreatedAt = null;
+let _loadedVariationOrders = [];
 // When true: only show included items in the line-item panel (load mode)
 let _loadedView = false;
 
@@ -1289,6 +1472,9 @@ function buildPayload(){
     line_items:active.map(li=>{const q=Number(li.qty)||1;return{line_id:li.id,item_id:li.item_id||'custom',item_name:li.item_name,category_id:li.category_id,area_id:li.area_id,qty:q,unit:li.unit||'lot',width_mm:li.width_mm||null,height_mm:li.height_mm||null,cost:+lineCostTotal(li).toFixed(2),markup_pct:Number(li.markup_pct)||0,amount:+lineAmountTotal(li).toFixed(2),pl:+calcPL(li).toFixed(2),included_by_default:!!li.included_by_default,is_custom:!!li.is_custom,remarks:li.remarks||'',charges:getActiveCharges(li)};}),
     // Preserve original created_at when re-submitting an edited quote
     created_at: _loadedCreatedAt || null,
+    // Preserve any Variation Orders the loaded quote already had — Submit replaces the
+    // whole saved row, so without this a resubmit after signing would silently wipe them.
+    variation_orders: _loadedVariationOrders || [],
   };
 }
 
@@ -1332,6 +1518,9 @@ async function loadQuote(){
 function populateFromPayload(data){
   // Capture original created_at so re-submits preserve it
   _loadedCreatedAt = data.created_at || null;
+  // Capture any existing Variation Orders so re-submits preserve them too
+  _loadedVariationOrders = data.variation_orders || [];
+  document.getElementById('tabVo').style.display = _loadedVariationOrders.length ? '' : 'none';
   // Project fields
   const p=data.project||{};
   document.getElementById('quoteRef').value=p.quote_ref||'';
@@ -1402,8 +1591,10 @@ function buildDocHTML(payload, mode){
   const colCount=isDesigner?8:6;
 
   let rowsHTML='',num=1;
+  const catTotalsArr=[]; // {cat, sum} — reused by the per-category subtotal row and the Summary page below
   Object.entries(catMap).forEach(([cat,areas])=>{
     rowsHTML+=`<tr class="doc-cat-row"><td colspan="${colCount}">${esc(cat)}</td></tr>`;
+    let catSum=0;
     const akeys=Object.keys(areas);
     akeys.forEach(area=>{
       if(akeys.length>1)rowsHTML+=`<tr class="doc-area-row"><td colspan="${colCount}">↳ ${esc(area)}</td></tr>`;
@@ -1447,8 +1638,11 @@ function buildDocHTML(payload, mode){
           <td class="r" style="width:78px;font-weight:600">${fmt(li.amount)}${chargeCol(ch=>ch.amt)}</td>
           ${isDesigner?`<td class="r" style="width:72px;color:${plVal>=0?'#2E7D32':'#C62828'};font-weight:600">${(plVal>=0?'+':'')+fmt(plVal)}${chargeCol(ch=>(ch.amt-ch.cost),true)}</td>`:''}
         </tr>`;
+        catSum+=li.amount;
       });
     });
+    rowsHTML+=`<tr class="doc-cat-subtotal"><td colspan="${colCount-1}" style="text-align:right">Sub-total:</td><td class="r">${fmt(catSum)}</td></tr>`;
+    catTotalsArr.push({cat,sum:catSum});
   });
 
   const profCol=s.total_profit>=0?'#2E7D32':'#C62828';
@@ -1458,6 +1652,16 @@ function buildDocHTML(payload, mode){
     <tr><td class="tl">Margin</td><td class="tv">${pct(s.margin_pct)}</td></tr>
     <tr class="grand"><td class="tl">TOTAL AMOUNT</td><td class="tv">${fmt(s.total_amount)}</td></tr>`:`
     <tr class="grand"><td class="tl">TOTAL AMOUNT</td><td class="tv">${fmt(s.total_amount)}</td></tr>`;
+
+  // Summary page — category rollup + Sub-total/Goodwill Discount/Grand Total.
+  // Goodwill Discount isn't a field the builder collects yet, so it defaults to 0 and
+  // the row is simply omitted for ordinary quotes rather than showing a redundant $0.00.
+  const summaryRowsHTML=catTotalsArr.map((c,i)=>`<tr><td class="num">${i+1}</td><td>${esc(c.cat.charAt(0)+c.cat.slice(1).toLowerCase())}</td><td class="amt">${fmt(c.sum)}</td></tr>`).join('');
+  const summarySubTotal=catTotalsArr.reduce((a,c)=>a+c.sum,0);
+  const goodwillDiscount=Number(p.goodwill_discount||s.goodwill_discount||0);
+  const summaryGrandTotal=summarySubTotal-goodwillDiscount;
+  const discountRowHTML=goodwillDiscount?`<tr class="sub"><td colspan="2" style="text-align:right">GOODWILL DISCOUNT:</td><td class="amt">-${fmt(goodwillDiscount)}</td></tr>`:'';
+  const today=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
 
   return`<div class="doc${isDesigner?' designer-copy':''}" style="position:relative">
     <div class="doc-letterhead">
@@ -1507,11 +1711,115 @@ function buildDocHTML(payload, mode){
       <div>${esc(CONFIG.companyName)} &nbsp;·&nbsp; ${esc(CONFIG.phone)} &nbsp;·&nbsp; ${esc(CONFIG.email)}</div>
       <div>This quotation is valid for 30 days from date of issue.</div>
     </div>
+
+    <div class="doc-summary">
+      <div class="doc-summary-title">Summary</div>
+      <table class="doc-summary-table"><tbody>
+        ${summaryRowsHTML}
+        <tr class="sub"><td colspan="2" style="text-align:right">SUB-TOTAL:</td><td class="amt">${fmt(summarySubTotal)}</td></tr>
+        ${discountRowHTML}
+        <tr class="grand"><td colspan="2" style="text-align:right">GRAND TOTAL:</td><td class="amt">${fmt(summaryGrandTotal)}</td></tr>
+      </tbody></table>
+      <div class="doc-sig-block">
+        <div class="doc-sig-side"><p class="who">Yours Sincerely,</p><p>${esc(CONFIG.companyName)}</p><div class="doc-sig-canvas-slot"></div><div class="doc-sig-meta">HP: ${esc(CONFIG.phone)}<br>Date: ${today}</div></div>
+        <div class="doc-sig-side"><p class="who">I/We, hereby agree the above,</p><div class="doc-sig-canvas-slot"></div><div class="doc-sig-meta">Name: <b>${esc(p.client_name||'—')}</b><br>Date: ${today}</div></div>
+      </div>
+    </div>
+  </div>`+buildTermsHTML(payload);
+}
+
+/* ══════════════════════════════════════════════════════
+   TERMS & CONDITIONS PAGE
+   Payment split is computed live off payload.summary.total_amount,
+   so it always matches this specific quotation's grand total.
+══════════════════════════════════════════════════════ */
+function buildTermsHTML(payload){
+  const p=payload.project,s=payload.summary;
+  // Payment schedule is based on the actual amount owed (after any Goodwill Discount),
+  // matching the Grand Total on the Summary page above, not the pre-discount line-items total.
+  const discount=Number(p.goodwill_discount||s.goodwill_discount||0);
+  const total=(s.total_amount||0)-discount;
+  const letters=['A','B','C','D','E','F','G','H'];
+  const payRowsHTML=CONFIG.paymentTerms.map((t,i)=>{
+    const amt=total*(t.pct/100);
+    return`<div class="doc-tc-payrow"><span>${letters[i]||i+1}) ${esc(t.label)}</span><span class="doc-tc-amt">${fmt(amt)}</span></div>`;
+  }).join('');
+  const co=esc(CONFIG.companyName);
+  const threshold=fmt(CONFIG.managementCountersignThreshold).replace(/\.00$/,'');
+
+  // 10 clauses — same scope/order as the original, wording refined using the clearer
+  // phrasing from the 22-clause revised draft (grace period + interest rate on late
+  // payment, concrete Defects Inspection Period, mm-tolerance on fabrication, GST
+  // contingency, portfolio/marketing photo carve-out). One addition beyond a pure
+  // reword: clause 6 now also covers electronic-signature validity, since that's
+  // directly relevant to how this document is actually signed.
+  const tcClauses=[
+    `The Contract Sum shall be paid by the Client to ${co} in accordance with the following progressive payment schedule ("Progress Payments"), which shall be strictly adhered to:<div class="doc-tc-pay">${payRowsHTML}</div>`,
+    `Time is of the essence in respect of all payment obligations. If any Progress Payment is not received within seven (7) days of its due date, ${co} may suspend all Works until the outstanding sum, together with interest at 1.5% per month (or part thereof) on the overdue amount, is received in full. ${co} shall not be liable for any loss or delay arising from such suspension, and the Completion Date shall be extended accordingly.`,
+    `All payments shall be made by cheque payable to "${co}", by bank transfer, or via PayNow to our ${esc(CONFIG.companyReg)}, with the project address indicated as reference. ${co} shall not be liable for any cash or cheque payment made to, or handed to, any representative unless made at ${co}'s registered office against an official receipt issued under authorised signature and company stamp. A payment shall be deemed received only upon actual receipt of cleared funds.`,
+    `Any works, materials, finishes or specifications not expressly included in this Agreement shall constitute a variation ("Variation"). No Variation shall be carried out on verbal instruction alone; all Variations must be recorded in a written Variation Order specifying the additional scope and cost, and confirmed by both parties before the varied Works commence.`,
+    `Upon completion of the Works, ${co} shall notify the Client in writing and both parties shall jointly inspect the premises. Any defects, incomplete items, or touch-ups required shall be recorded in a joint inspection list. The Client shall notify ${co} in writing of any such items within seven (7) days of handover (the "Defects Inspection Period"); save for items validly notified within this period, the Works shall be deemed accepted, save for ${co}'s standard workmanship warranty (if any) separately provided.`,
+    `This Quotation is valid for thirty (30) days from its date of issue. This Agreement shall only become valid and binding upon execution by both the Client and an authorised representative of ${co}, including by electronic or digital signature affixed via ${co}'s online quotation acceptance platform, in accordance with the Electronic Transactions Act 2010. For any Contract Sum exceeding ${threshold}, this Agreement shall additionally require countersignature by a member of ${co}'s management.`,
+    `Any perspective drawings or visualisations presented are artist's impressions provided solely to assist the Client in visualising the proposed design concept and do not form part of the contractual specification. Variance between a perspective and the actual as-built condition may arise from factors including printing, site constraints, and materials selected, and shall not be construed as a defect or breach of this Agreement.`,
+    `Any fabrication drawings or dimensions presented are indicative and serve as a guide only. Actual as-built dimensions may vary from those indicated within normal trade tolerances (typically up to 10mm) due to site conditions and standard fabrication tolerances; such variance shall not constitute a defect or breach of this Agreement.`,
+    `${co} is not currently registered for the Goods and Services Tax (GST); all prices stated are therefore nett. In the event ${co} becomes GST-registered prior to completion of the Works, GST shall be added to any sums not yet invoiced, at the prevailing rate.`,
+    `The terms of this Agreement, including pricing, are confidential between the parties and shall not be disclosed to any third party, save where required by law. Notwithstanding the foregoing, ${co} may photograph and/or video the Works, in progress and upon completion, for its own portfolio and marketing purposes, unless the Client objects in writing prior to handover.`,
+  ];
+  const tcListHTML=tcClauses.map(c=>`<li>${c}</li>`).join('');
+
+  return`<div class="doc doc-tc">
+    <div class="doc-tc-header">
+      <div class="doc-tc-title">Terms &amp; Conditions</div>
+      <div class="doc-tc-ref">Ref: ${esc(p.quote_ref||'DRAFT')}</div>
+    </div>
+    <ol class="doc-tc-list">${tcListHTML}</ol>
+
+    <div class="doc-tc-sig-note">Your Sincerely,<br><strong>${co}</strong></div>
     <div class="doc-footer-sigs">
       <div><div class="doc-sig-line">Authorised Signature &amp; Company Stamp</div></div>
       <div><div class="doc-sig-line">Client Acceptance Signature &amp; Date</div></div>
     </div>
   </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   VARIATION ORDERS — preview tab
+   Scaffold only: there is no VO data-entry UI in this file yet,
+   so payload.variation_orders is always [] today and this tab
+   stays hidden. Once VOs can actually be added, each entry is
+   expected in this shape:
+     { vo_ref, date_raised, reason, requested_by, status,
+       vo_value, revised_contract_sum, signature_data, approved_at,
+       line_items: [ ...same shape as a normal line item, plus change_type... ] }
+══════════════════════════════════════════════════════ */
+function buildVoHTML(payload){
+  const vos=payload.variation_orders||[];
+  const p=payload.project;
+  if(!vos.length){
+    return`<div class="doc"><div class="doc-section-title">Variation Orders</div><p style="font-size:12px;color:#6B5E52;padding:20px 0">No Variation Orders have been added to this quotation yet.</p></div>`;
+  }
+  const voHTML=vos.map(vo=>{
+    const items=vo.line_items||[];
+    const rows=items.map(li=>`<tr>
+      <td style="width:70px;text-transform:uppercase;font-size:10px;color:#9E8E82">${esc(li.change_type||'—')}</td>
+      <td><div class="doc-item-name">${esc(li.item_name||'')}</div></td>
+      <td class="r" style="width:38px">${li.qty||''}</td>
+      <td class="r" style="width:78px;font-weight:600">${fmt(li.amount||0)}</td>
+    </tr>`).join('');
+    return`<div class="doc-summary" style="margin-top:26px">
+      <div class="doc-summary-title" style="text-decoration:none;font-size:12px">${esc(vo.vo_ref||'VO')} — ${esc(vo.status||'draft')}</div>
+      <div class="doc-client-grid">
+        <div class="doc-client-row"><span class="doc-client-label">Date</span><span class="doc-client-val">${esc(vo.date_raised||'—')}</span></div>
+        <div class="doc-client-row"><span class="doc-client-label">Reason</span><span class="doc-client-val">${esc(vo.reason||'—')}</span></div>
+      </div>
+      <table class="doc-table"><thead><tr><th>Type</th><th>Description</th><th class="r">Qty</th><th class="r">Amount</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="doc-totals-wrap"><table class="doc-totals-table"><tbody>
+        <tr><td class="tl">This VO Value</td><td class="tv">${fmt(vo.vo_value||0)}</td></tr>
+        <tr class="grand"><td class="tl">Revised Contract Sum</td><td class="tv">${fmt(vo.revised_contract_sum||0)}</td></tr>
+      </tbody></table></div>
+    </div>`;
+  }).join('');
+  return`<div class="doc"><div class="doc-section-title">Variation Orders — ${esc(p.quote_ref||'DRAFT')}</div>${voHTML}</div>`;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1554,6 +1862,7 @@ body{font-family:Arial,Helvetica,sans-serif;background:#fff}
 .doc-table tr:last-child td{border-bottom:none}
 .doc-cat-row td{background:#F0EBE0;font-weight:700;font-size:10px;color:#6B5E52;text-transform:uppercase;letter-spacing:.06em;padding:5px 7px;border-bottom:1px solid #D4C9B8}
 .doc-area-row td{font-size:10px;font-style:italic;color:#9E8E82;padding:3px 7px;background:#FAF8F5;border-bottom:1px solid #EDE8DF}
+.doc-cat-subtotal td{background:#EFE6D3;font-weight:700;font-size:11px;color:#6B4F2E;padding:6px 7px;border-bottom:2px solid #D9C79E}
 .doc-item-name{font-weight:500;line-height:1.35;color:#1a1a1a;font-size:11.5px}
 .doc-item-dim{font-size:10px;color:#9E8E82;margin-top:2px}
 .doc-item-remark{font-size:10px;color:#7B1818;font-style:italic;margin-top:2px}
@@ -1572,6 +1881,37 @@ body{font-family:Arial,Helvetica,sans-serif;background:#fff}
 .doc-sig-line{border-top:1px solid #C8C0B4;padding-top:4px;font-size:9.5px;color:#9E8E82;margin-top:36px}
 .doc-watermark-designer{display:none}
 .doc.designer-copy .doc-watermark-designer{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:72px;font-weight:900;color:rgba(184,148,90,.07);pointer-events:none;white-space:nowrap;letter-spacing:.15em;z-index:0}
+
+/* ─── SUMMARY PAGE ───────────────────────────────────── */
+.doc-summary{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+.doc-summary-title{font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.06em;text-decoration:underline;text-underline-offset:3px;margin-bottom:14px}
+.doc-summary-table{width:100%;border-collapse:collapse;font-size:12px;font-style:italic}
+.doc-summary-table td{padding:4px 6px}
+.doc-summary-table td.num{width:24px;font-style:normal;color:#9E8E82}
+.doc-summary-table td.amt{text-align:right;font-family:monospace;font-style:normal;white-space:nowrap;width:100px}
+.doc-summary-table tr.sub td{padding-top:10px;font-style:normal;font-weight:600;border-top:1px solid #E8E2D9}
+.doc-summary-table tr.grand{background:#EFE6D3}
+.doc-summary-table tr.grand td{font-style:normal;font-weight:700;font-size:14px;padding:8px 6px;color:#6B4F2E}
+.doc-summary-table tr.grand td.amt{color:#B8945A}
+.doc-sig-block{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.doc-sig-side p{font-size:11.5px;margin-bottom:4px}
+.doc-sig-side .who{font-weight:700}
+.doc-sig-canvas-slot{height:40px;border-bottom:1px solid #C8C0B4;margin:18px 0 4px}
+.doc-sig-meta{font-size:10.5px;color:#6B5E52;line-height:1.6}
+
+.doc-tc{margin-top:32px;padding-top:26px;border-top:2px dashed #E0D8CC}
+@media print{.doc-tc{page-break-before:always;border-top:none;margin-top:0;padding-top:0}}
+.doc-tc-header{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:12px;margin-bottom:16px;border-bottom:2px solid #B8945A}
+.doc-tc-title{font-weight:700;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:#1a1a1a;text-decoration:underline;text-underline-offset:3px}
+.doc-tc-ref{font-family:monospace;font-size:10.5px;color:#9E8E82}
+.doc-tc-list{list-style:none;counter-reset:tc;font-size:11px;line-height:1.6;color:#1a1a1a;margin:0;padding:0}
+.doc-tc-list>li{counter-increment:tc;position:relative;padding-left:22px;margin-bottom:13px}
+.doc-tc-list>li::before{content:counter(tc);position:absolute;left:0;top:0;font-weight:700;color:#B8945A}
+.doc-tc-pay{margin-top:6px;padding:8px 10px;background:#FAF8F5;border-radius:6px;border:1px solid #E8E2D9}
+.doc-tc-payrow{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+.doc-tc-payrow+.doc-tc-payrow{border-top:1px dashed #E8E2D9}
+.doc-tc-amt{font-family:monospace;font-weight:600;color:#7B1818;white-space:nowrap}
+.doc-tc-sig-note{margin-top:22px;font-size:11px;line-height:1.6}
 `;
 
 function buildStandaloneDocHTML(payload, mode){
@@ -1582,19 +1922,24 @@ function buildStandaloneDocHTML(payload, mode){
 /* ══════════════════════════════════════════════════════
    PREVIEW MODAL
 ══════════════════════════════════════════════════════ */
+function renderPreviewMode(payload,mode){
+  return mode==='vo' ? buildVoHTML(payload) : buildDocHTML(payload,mode);
+}
 function openPreview(){
   const payload=buildPayload();
-  document.getElementById('previewBody').innerHTML=buildDocHTML(payload,previewMode);
+  document.getElementById('tabVo').style.display=payload.variation_orders.length?'':'none';
+  document.getElementById('previewBody').innerHTML=renderPreviewMode(payload,previewMode);
   document.getElementById('previewOverlay').classList.add('open');
 }
 function switchTab(mode){
   previewMode=mode;
   document.querySelectorAll('.ptab').forEach(t=>t.classList.toggle('active',t.dataset.copy===mode));
   const payload=buildPayload();
-  document.getElementById('previewBody').innerHTML=buildDocHTML(payload,mode);
+  document.getElementById('previewBody').innerHTML=renderPreviewMode(payload,mode);
 }
 document.querySelectorAll('.ptab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.copy)));
 document.getElementById('btnPreview').addEventListener('click',openPreview);
+document.getElementById('mtbPreviewBtn').addEventListener('click',openPreview);
 document.getElementById('previewClose').addEventListener('click',()=>document.getElementById('previewOverlay').classList.remove('open'));
 document.getElementById('previewCloseBtn').addEventListener('click',()=>document.getElementById('previewOverlay').classList.remove('open'));
 document.getElementById('previewOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('open');});
@@ -1678,6 +2023,8 @@ document.getElementById('btnClear').addEventListener('click',()=>{
   document.getElementById('propertyType').value='';
   document.getElementById('loadRef').value='';
   _loadedCreatedAt=null;
+  _loadedVariationOrders=[];
+  document.getElementById('tabVo').style.display='none';
   _loadedView=false;
   catCollapsed.clear();areaCollapsed.clear();
   initLineItems();
@@ -1716,6 +2063,7 @@ function applyHeaderLogo(){
   }
 }
 applyHeaderLogo();
+syncStickyOffsets();
 loadCatalog();
 </script>
 </body>
