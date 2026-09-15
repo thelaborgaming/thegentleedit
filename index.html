@@ -50,31 +50,6 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 
 /* ─── LAYOUT ────────────────────────────────────────── */
 .app-body{max-width:1380px;margin:0 auto;padding:22px 18px;display:grid;grid-template-columns:1fr 306px;gap:18px;align-items:start}
-@media(max-width:940px){
-  .app-body{grid-template-columns:1fr}
-  /* Below tablet-portrait width there isn't enough viewport height to spend ~165px
-     on four stacked sticky bars (page header + toolbar + category + area). Drop the
-     three inner levels to static so content isn't squeezed, and this also sidesteps
-     the sticky-offset gap/overlap bug entirely on the devices where it's tightest. */
-  .li-toolbar,.cat-sec-header,.area-sub-header{position:static}
-  .right-sticky{position:static;top:auto}
-  .mobile-total-bar{display:flex}
-  .app-body{padding-bottom:76px} /* clears the fixed mobile total bar so it never covers the last row */
-}
-@media(max-width:600px){
-  /* Phone-width fix: the fixed-px input grids (built for a wide desktop row) no
-     longer fit a 375–430px screen and were overflowing/forcing horizontal scroll
-     inside each line item. Reflow them into even columns that wrap instead. */
-  .item-inputs{grid-template-columns:repeat(3,1fr)}
-  .item-dim-row{grid-template-columns:repeat(2,1fr)}
-  .custom-g1{grid-template-columns:1fr}
-  .custom-g2{grid-template-columns:repeat(4,1fr)}
-  .li-toolbar{flex-direction:column;align-items:stretch}
-  .li-btns{flex-wrap:wrap}
-  .li-btns .btn{flex:1 1 auto;justify-content:center;min-width:0!important}
-  /* Larger touch target for the line-item checkbox without changing its visual size */
-  .item-check{padding:8px 8px 8px 0;margin:-8px 0 -8px -8px}
-}
 
 /* ─── PANELS ────────────────────────────────────────── */
 .panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:clip;transition:background .3s,border-color .3s}
@@ -395,9 +370,9 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 .doc-tc-title{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:#1a1a1a;text-decoration:underline;text-underline-offset:3px}
 .doc-tc-ref{font-family:monospace;font-size:10.5px;color:#9E8E82}
 .doc-tc-list{list-style:none;counter-reset:tc;font-size:11px;line-height:1.6;color:#1a1a1a;margin:0;padding:0}
-.doc-tc-list>li{counter-increment:tc;position:relative;padding-left:22px;margin-bottom:13px}
+.doc-tc-list>li{counter-increment:tc;position:relative;padding-left:22px;margin-bottom:13px;text-align:justify;text-justify:inter-word}
 .doc-tc-list>li::before{content:counter(tc);position:absolute;left:0;top:0;font-weight:700;color:#B8945A}
-.doc-tc-pay{margin-top:6px;padding:8px 10px;background:#FAF8F5;border-radius:6px;border:1px solid #E8E2D9}
+.doc-tc-pay{margin-top:6px;padding:8px 10px;background:#FAF8F5;border-radius:6px;border:1px solid #E8E2D9;text-align:left}
 .doc-tc-payrow{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
 .doc-tc-payrow+.doc-tc-payrow{border-top:1px dashed #E8E2D9}
 .doc-tc-amt{font-family:monospace;font-weight:600;color:#7B1818;white-space:nowrap}
@@ -409,6 +384,42 @@ input[type=number]::-webkit-inner-spin-button{opacity:.4}
 @keyframes spin{to{transform:rotate(360deg)}}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ─── RESPONSIVE OVERRIDES ──────────────────────────────
+   Kept last in the stylesheet on purpose: these override sticky/grid rules
+   defined further up (app-body, right-sticky, li-toolbar, cat-sec-header,
+   area-sub-header, mobile-total-bar, item-inputs, item-dim-row, custom-g1/g2,
+   li-btns, item-check). CSS applies the later same-specificity rule when a
+   media query is true, so if this block sits ABOVE those base rules again,
+   every fix below silently stops applying — including the phone-width
+   item-inputs reflow, which is what was causing the horizontal overflow
+   (fields/remove-button pushed off-screen, visible as a "hole" top-right
+   whenever the page scrolled). Add new overrides here, not near the top. */
+@media(max-width:940px){
+  .app-body{grid-template-columns:1fr}
+  /* Below tablet-portrait width there isn't enough viewport height to spend ~165px
+     on four stacked sticky bars (page header + toolbar + category + area). Drop the
+     three inner levels to static so content isn't squeezed, and this also sidesteps
+     the sticky-offset gap/overlap bug entirely on the devices where it's tightest. */
+  .li-toolbar,.cat-sec-header,.area-sub-header{position:static}
+  .right-sticky{position:static;top:auto}
+  .mobile-total-bar{display:flex}
+  .app-body{padding-bottom:76px} /* clears the fixed mobile total bar so it never covers the last row */
+}
+@media(max-width:600px){
+  /* Phone-width fix: the fixed-px input grids (built for a wide desktop row) no
+     longer fit a 375–430px screen and were overflowing/forcing horizontal scroll
+     inside each line item. Reflow them into even columns that wrap instead. */
+  .item-inputs{grid-template-columns:repeat(3,1fr)}
+  .item-dim-row{grid-template-columns:repeat(2,1fr)}
+  .custom-g1{grid-template-columns:1fr}
+  .custom-g2{grid-template-columns:repeat(4,1fr)}
+  .li-toolbar{flex-direction:column;align-items:stretch}
+  .li-btns{flex-wrap:wrap}
+  .li-btns .btn{flex:1 1 auto;justify-content:center;min-width:0!important}
+  /* Larger touch target for the line-item checkbox without changing its visual size */
+  .item-check{padding:8px 8px 8px 0;margin:-8px 0 -8px -8px}
+}
 </style>
 </head>
 <body>
@@ -1995,9 +2006,9 @@ body{font-family:Arial,Helvetica,sans-serif;background:#fff}
 .doc-tc-title{font-weight:700;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:#1a1a1a;text-decoration:underline;text-underline-offset:3px}
 .doc-tc-ref{font-family:monospace;font-size:10.5px;color:#9E8E82}
 .doc-tc-list{list-style:none;counter-reset:tc;font-size:11px;line-height:1.6;color:#1a1a1a;margin:0;padding:0}
-.doc-tc-list>li{counter-increment:tc;position:relative;padding-left:22px;margin-bottom:13px}
+.doc-tc-list>li{counter-increment:tc;position:relative;padding-left:22px;margin-bottom:13px;text-align:justify;text-justify:inter-word}
 .doc-tc-list>li::before{content:counter(tc);position:absolute;left:0;top:0;font-weight:700;color:#B8945A}
-.doc-tc-pay{margin-top:6px;padding:8px 10px;background:#FAF8F5;border-radius:6px;border:1px solid #E8E2D9}
+.doc-tc-pay{margin-top:6px;padding:8px 10px;background:#FAF8F5;border-radius:6px;border:1px solid #E8E2D9;text-align:left}
 .doc-tc-payrow{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
 .doc-tc-payrow+.doc-tc-payrow{border-top:1px dashed #E8E2D9}
 .doc-tc-amt{font-family:monospace;font-weight:600;color:#7B1818;white-space:nowrap}
