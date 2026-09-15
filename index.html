@@ -2026,17 +2026,51 @@ function buildStandaloneDocHTML(payload, mode){
 function renderPreviewMode(payload,mode){
   return mode==='vo' ? buildVoHTML(payload) : buildDocHTML(payload,mode);
 }
+/* Scale the rendered .doc down to fit the modal width, like a PDF viewer
+   fitting a page to screen — instead of leaving it at full (print) size
+   and forcing the person to scroll left/right to read it on a phone.
+   Only shrinks when the content doesn't fit; never scales up on desktop. */
+function fitPreviewDoc(){
+  const body=document.getElementById('previewBody');
+  const doc=body && body.querySelector(':scope > .doc');
+  if(!doc) return;
+  const bodyStyle=getComputedStyle(body);
+  const padX=(parseFloat(bodyStyle.paddingLeft)||0)+(parseFloat(bodyStyle.paddingRight)||0);
+  const availW=body.clientWidth-padX;
+  const naturalW=doc.scrollWidth;
+  if(naturalW<=availW) return; // already fits at full (readable) size — leave as-is
+  const naturalH=doc.scrollHeight;
+  const scale=availW/naturalW;
+  // A CSS transform alone doesn't shrink what the scroll container thinks its
+  // content measures (scrollWidth is computed pre-transform), so scaling .doc
+  // directly still leaves it needing a horizontal scrollbar. Wrapping it in a
+  // box sized to the final (post-scale) dimensions, with overflow hidden,
+  // makes the wrapper — not the oversized transformed .doc — what the modal
+  // measures, so it fits like a shrunk PDF page instead of overflowing.
+  const wrap=document.createElement('div');
+  wrap.className='doc-fit-wrap';
+  wrap.style.width=availW+'px';
+  wrap.style.height=(naturalH*scale)+'px';
+  wrap.style.overflow='hidden';
+  doc.parentNode.insertBefore(wrap,doc);
+  wrap.appendChild(doc);
+  doc.style.width=naturalW+'px';
+  doc.style.transformOrigin='top left';
+  doc.style.transform=`scale(${scale})`;
+}
 function openPreview(){
   const payload=buildPayload();
   document.getElementById('tabVo').style.display=payload.variation_orders.length?'':'none';
   document.getElementById('previewBody').innerHTML=renderPreviewMode(payload,previewMode);
   document.getElementById('previewOverlay').classList.add('open');
+  fitPreviewDoc();
 }
 function switchTab(mode){
   previewMode=mode;
   document.querySelectorAll('.ptab').forEach(t=>t.classList.toggle('active',t.dataset.copy===mode));
   const payload=buildPayload();
   document.getElementById('previewBody').innerHTML=renderPreviewMode(payload,mode);
+  fitPreviewDoc();
 }
 document.querySelectorAll('.ptab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.copy)));
 document.getElementById('btnPreview').addEventListener('click',openPreview);
@@ -2044,6 +2078,7 @@ document.getElementById('mtbPreviewBtn').addEventListener('click',openPreview);
 document.getElementById('previewClose').addEventListener('click',()=>document.getElementById('previewOverlay').classList.remove('open'));
 document.getElementById('previewCloseBtn').addEventListener('click',()=>document.getElementById('previewOverlay').classList.remove('open'));
 document.getElementById('previewOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('open');});
+window.addEventListener('resize',()=>{ if(document.getElementById('previewOverlay').classList.contains('open')) fitPreviewDoc(); });
 
 
 /* ══════════════════════════════════════════════════════
