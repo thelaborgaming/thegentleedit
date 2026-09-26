@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
 <title>Quotation Sign — The Gentle Edit</title>
 <style id="iphone-hotfix">
 @media (max-width: 932px){
@@ -181,6 +182,25 @@ canvas#sigPad{display:block;width:100%;touch-action:none}
 .btn-submit:hover:not(:disabled){background:#6D5535;transform:translateY(-1px);box-shadow:0 6px 20px rgba(139,111,71,.35)}
 .btn-submit:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .submit-hint{font-size:11px;color:#9E8E82;text-align:center;margin-top:8px}
+.sign-error-banner{background:#FBEAEA;border:1px solid #E8B4AC;border-radius:6px;padding:10px 12px;font-size:12.5px;color:#C0392B;margin-bottom:16px}
+
+/* ── TYPED SIGNATURE FALLBACK ── */
+.sig-mode-toggle{background:none;border:none;color:#8B6F47;font-size:11.5px;font-family:inherit;text-decoration:underline;cursor:pointer;padding:0;margin-bottom:16px;display:block}
+.sig-mode-toggle:hover{color:#6D5535}
+.typed-sig-field input{font-size:20px}
+.typed-sig-preview-wrap{border:2px dashed #D4C9B8;border-radius:8px;background:#FDFAF5;padding:16px;margin-top:8px;min-height:60px;display:flex;align-items:center;justify-content:center}
+.typed-sig-preview{font-family:'Fraunces',serif;font-style:italic;font-size:28px;color:#1C1714;text-align:center;word-break:break-word}
+.typed-sig-preview.placeholder{color:#C8C0B4;font-size:13px;font-style:normal;font-family:'DM Sans',sans-serif}
+
+/* ── CONFIRM-BEFORE-SUBMIT PANEL ── */
+.confirm-panel{margin-top:14px;padding:16px;background:#FAF5EA;border:1.5px solid #D9C79E;border-radius:8px}
+.confirm-panel-text{font-size:13px;color:#1C1714;line-height:1.5;margin-bottom:14px}
+.confirm-panel-actions{display:flex;gap:10px}
+.btn-confirm-cancel{flex:1;padding:10px;background:#fff;border:1px solid #E2DDD4;color:#6B5E52;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-confirm-cancel:hover{background:#F4F1EC}
+.btn-confirm-submit{flex:1.4;padding:10px;background:#8B6F47;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-confirm-submit:hover{background:#6D5535}
+.btn-confirm-submit:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── SUCCESS ── */
 .success-card{background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(28,23,20,.10);padding:48px 36px;text-align:center;max-width:560px;margin:40px auto}
@@ -224,7 +244,7 @@ canvas#sigPad{display:block;width:100%;touch-action:none}
   </div>
 </header>
 
-<div class="main">
+<div class="main" aria-live="polite">
 
   <!-- Loading -->
   <div class="state" id="stateLoading">
@@ -248,19 +268,30 @@ canvas#sigPad{display:block;width:100%;touch-action:none}
     <div class="sign-card">
       <h3>Sign &amp; Accept</h3>
       <p class="hint">Please review the quotation, summary and Terms &amp; Conditions above before signing. Your signature will appear on the document once drawn.</p>
+      <div class="sign-error-banner" id="signErrorBanner" role="alert" aria-live="assertive" style="display:none"></div>
 
       <div class="field">
         <label>Your Full Name (as signatory)</label>
         <input type="text" id="signerName" placeholder="Enter your full name">
       </div>
 
-      <div class="field">
+      <div class="field" id="drawSigLabel">
         <label>Draw Your Signature Below</label>
       </div>
       <div class="sig-wrap" id="sigWrap">
-        <canvas id="sigPad"></canvas>
+        <canvas id="sigPad" role="img" aria-label="Signature drawing pad — draw your signature here with a mouse, finger, or stylus"></canvas>
         <span class="sig-label">Sign here using your mouse or finger</span>
         <button class="btn-clear-sig" id="btnClearSig" type="button">Clear</button>
+      </div>
+      <button type="button" class="sig-mode-toggle" id="btnTypedToggle">Can't draw a signature? Type it instead</button>
+
+      <div class="field typed-sig-field" id="typedSigField" style="display:none">
+        <label>Type Your Signature</label>
+        <input type="text" id="typedSigInput" placeholder="Type your name as your signature">
+        <div class="typed-sig-preview-wrap">
+          <div class="typed-sig-preview" id="typedSigPreview">Your typed signature will appear here</div>
+        </div>
+        <button type="button" class="sig-mode-toggle" id="btnDrawToggle">Draw my signature instead</button>
       </div>
 
       <label class="agree-row">
@@ -270,6 +301,14 @@ canvas#sigPad{display:block;width:100%;touch-action:none}
 
       <button class="btn-submit" id="btnSign" disabled>Sign &amp; Accept Quotation</button>
       <div class="submit-hint">By clicking above, you are electronically signing this document.</div>
+
+      <div class="confirm-panel" id="confirmPanel" style="display:none" role="alertdialog" aria-label="Confirm signing">
+        <p class="confirm-panel-text" id="confirmPanelText"></p>
+        <div class="confirm-panel-actions">
+          <button type="button" class="btn-confirm-cancel" id="btnConfirmCancel">Cancel</button>
+          <button type="button" class="btn-confirm-submit" id="btnConfirmSubmit">Yes, Sign &amp; Accept</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -313,14 +352,24 @@ const CO = {
 /* ══════════════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════════════ */
-const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const money = n => parseFloat(String(n||'').replace(/[^0-9.-]/g,''))||0;
-const fmt = n  => '$' + money(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fmt = n  => 'S$' + money(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 function show(id){ document.getElementById(id).style.display=''; }
 function hide(id){ document.getElementById(id).style.display='none'; }
 function setState(s){
   ['stateLoading','stateError','stateDoc','stateSuccess'].forEach(hide);
   show('state'+s);
+}
+function showSignError(msg){
+  const el = document.getElementById('signErrorBanner');
+  el.textContent = msg;
+  el.style.display = '';
+}
+function clearSignError(){
+  const el = document.getElementById('signErrorBanner');
+  el.style.display = 'none';
+  el.textContent = '';
 }
 
 /* ══════════════════════════════════════════════════════
@@ -348,8 +397,8 @@ function buildQuoteHTML(data) {
   const catMap = {};
   const catOrder = [];
   items.forEach(li => {
-    const cat = li.category_id || li.category || 'General';
-    const area = li.area_id || li.area || 'General';
+    const cat = String(li.category_id || li.category || 'General');
+    const area = String(li.area_id || li.area || 'General');
     if (!catMap[cat]) { catMap[cat] = {}; catOrder.push(cat); }
     if (!catMap[cat][area]) catMap[cat][area] = [];
     catMap[cat][area].push(li);
@@ -388,7 +437,7 @@ function buildQuoteHTML(data) {
         </tr>`;
       });
     });
-    const catSum = catTotals.find(c => c.cat === cat).sum;
+    const catSum = (catTotals.find(c => c.cat === cat) || {}).sum || 0;
     rowsHTML += `<tr class="doc-cat-subtotal"><td colspan="5" style="text-align:right">Sub-total:</td><td class="r">${fmt(catSum)}</td></tr>`;
   });
 
@@ -400,11 +449,11 @@ function buildQuoteHTML(data) {
   // Optional goodwill discount — not yet a field the builder collects; defaults to 0 and the
   // row is omitted unless a value is actually present on the payload, so ordinary quotes
   // (the vast majority, with no discount) don't show a redundant $0.00 line.
-  const discount = money(s.goodwill_discount || p.goodwill_discount || 0);
+  const discount = Math.max(0, money(s.goodwill_discount || p.goodwill_discount || 0));
   const grandTotal = subTotal - discount;
   const discountRowHTML = discount ? `<tr class="sub"><td colspan="2" style="text-align:right">GOODWILL DISCOUNT:</td><td class="amt">-${fmt(discount)}</td></tr>` : '';
 
-  const today = new Date().toLocaleDateString('en-SG', {day:'2-digit',month:'short',year:'numeric'});
+  const today = new Date().toLocaleDateString('en-SG', {day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Singapore'});
 
   // Terms & Conditions — 10 clauses (original scope, refined wording)
   const co = esc(CO.name);
@@ -487,7 +536,7 @@ function buildQuoteHTML(data) {
         </div>
         <div class="doc-sign-col">
           <div class="doc-sign-label">Signature — Client</div>
-          <div class="doc-sign-pad"><img class="sig-slot-img" style="display:none"></div>
+          <div class="doc-sign-pad"><img class="sig-slot-img" alt="Client signature" style="display:none"></div>
           <div class="doc-sign-name"><span class="sig-slot-name">Awaiting signature…</span></div>
           <div class="doc-sign-date">Date: <b class="sig-slot-date">—</b></div>
         </div>
@@ -510,7 +559,7 @@ function buildQuoteHTML(data) {
         </div>
         <div class="doc-sign-col">
           <div class="doc-sign-label">Signature — Client</div>
-          <div class="doc-sign-pad"><img class="sig-slot-img" style="display:none"></div>
+          <div class="doc-sign-pad"><img class="sig-slot-img" alt="Client signature" style="display:none"></div>
           <div class="doc-sign-name"><span class="sig-slot-name">Awaiting signature…</span></div>
           <div class="doc-sign-date">Date: <b class="sig-slot-date">—</b></div>
         </div>
@@ -532,11 +581,19 @@ async function loadQuote() {
     document.getElementById('errMsg').textContent = 'No quotation reference found in this link. Please use the link sent to you by email.';
     setState('Error'); return;
   }
+  if (!TOKEN) {
+    document.getElementById('errMsg').textContent = 'This link is missing its access token. Please use the exact link sent to you by email.';
+    setState('Error'); return;
+  }
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 15000);
   try {
     const url = `${N8N_LOAD}?ref=${encodeURIComponent(QUOTE_REF)}&token=${encodeURIComponent(TOKEN)}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timeoutId);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
+    if (!data || typeof data !== 'object') throw new Error('Unexpected response from server');
     if (data.error) throw new Error(data.error);
     document.getElementById('docWrap').innerHTML = buildQuoteHTML(data);
     setState('Doc');
@@ -544,8 +601,10 @@ async function loadQuote() {
     resizeCanvas(); // re-measure now that the canvas is visible
     updateSigPreview(); // reset in-doc signature slots for the fresh render
   } catch(e) {
+    clearTimeout(timeoutId);
     console.error('Load failed:', e);
-    document.getElementById('errMsg').textContent = 'Could not load quotation: ' + e.message;
+    const msg = e.name === 'AbortError' ? 'The server took too long to respond. Please check your connection and try again.' : e.message;
+    document.getElementById('errMsg').textContent = 'Could not load quotation: ' + msg;
     setState('Error');
   }
 }
@@ -559,16 +618,16 @@ async function loadQuote() {
 function updateSigPreview() {
   const name = document.getElementById('signerName') ? document.getElementById('signerName').value.trim() : '';
   document.querySelectorAll('.sig-slot-name').forEach(el => el.textContent = name || '—');
-  if (hasSig) {
-    const dataUrl = canvas.toDataURL('image/png');
+  const dataUrl = getSignatureDataUrl();
+  if (dataUrl) {
     document.querySelectorAll('.sig-slot-img').forEach(img => { img.src = dataUrl; img.style.display = ''; });
   } else {
     document.querySelectorAll('.sig-slot-img').forEach(img => { img.style.display = 'none'; img.src=''; });
   }
-  if (name || hasSig) {
+  if (name || dataUrl) {
     const now = new Date();
-    const stampDate = now.toLocaleDateString('en-SG', {day:'2-digit',month:'short',year:'numeric'});
-    const stampTime = now.toLocaleTimeString('en-SG', {hour:'2-digit',minute:'2-digit',hour12:true}).toLowerCase();
+    const stampDate = now.toLocaleDateString('en-SG', {day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Singapore'});
+    const stampTime = now.toLocaleTimeString('en-SG', {hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Singapore'}).toLowerCase();
     document.querySelectorAll('.sig-slot-date').forEach(el => el.textContent = `${stampDate}, ${stampTime}`);
   } else {
     document.querySelectorAll('.sig-slot-date').forEach(el => el.textContent = '—');
@@ -581,11 +640,51 @@ function updateSigPreview() {
 const canvas = document.getElementById('sigPad');
 const ctx2   = canvas.getContext('2d');
 let drawing  = false, hasSig = false;
+let sigMode = 'draw'; // 'draw' | 'typed' — accessible fallback for anyone who can't draw with a mouse/finger/stylus
+let typedSigDataUrl = null;
+
+function signaturePresent() {
+  return sigMode === 'draw' ? hasSig : !!typedSigDataUrl;
+}
+function getSignatureDataUrl() {
+  if (sigMode === 'draw') return hasSig ? canvas.toDataURL('image/png') : null;
+  return typedSigDataUrl;
+}
+// Renders typed text as a signature-style PNG (matching the Fraunces italic
+// preview) so it can be embedded in the document exactly like a drawn
+// signature — no backend changes needed to accept it.
+function renderTypedSignatureImage(text) {
+  if (!text || !text.trim()) return null;
+  const off = document.createElement('canvas');
+  const w = 480, h = 140;
+  off.width = w; off.height = h;
+  const octx = off.getContext('2d');
+  octx.clearRect(0, 0, w, h);
+  octx.fillStyle = '#1C1714';
+  octx.textBaseline = 'middle';
+  octx.textAlign = 'center';
+  let fontSize = 48;
+  octx.font = `italic ${fontSize}px 'Fraunces', serif`;
+  while (octx.measureText(text).width > w - 40 && fontSize > 16) {
+    fontSize -= 2;
+    octx.font = `italic ${fontSize}px 'Fraunces', serif`;
+  }
+  octx.fillText(text, w / 2, h / 2);
+  return off.toDataURL('image/png');
+}
 
 function resizeCanvas() {
   const wrap = document.getElementById('sigWrap');
   const w = wrap.clientWidth;
   const h = Math.max(160, Math.min(220, w * 0.35));
+
+  // Setting canvas.width/height wipes the bitmap and resets the 2D context.
+  // If a signature was already drawn, snapshot it first so orientation
+  // changes / window resizes don't silently blank it while the Sign
+  // button remains enabled.
+  const prevImage = (hasSig && canvas.width > 0 && canvas.height > 0)
+    ? canvas.toDataURL('image/png') : null;
+
   canvas.width  = w * (window.devicePixelRatio || 1);
   canvas.height = h * (window.devicePixelRatio || 1);
   canvas.style.height = h + 'px';
@@ -594,6 +693,20 @@ function resizeCanvas() {
   ctx2.lineCap   = 'round';
   ctx2.lineJoin  = 'round';
   ctx2.strokeStyle = '#1C1714';
+
+  if (prevImage) {
+    const img = new Image();
+    img.onload = () => ctx2.drawImage(img, 0, 0, w, h);
+    img.src = prevImage;
+  } else if (hasSig) {
+    // Nothing to restore (e.g. first paint while the canvas was still
+    // hidden) — make sure state matches an actually-blank canvas so the
+    // client is required to sign again rather than submitting a blank image.
+    hasSig = false;
+    document.getElementById('sigWrap').classList.remove('has-sig');
+    checkReady();
+    updateSigPreview();
+  }
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
@@ -620,12 +733,52 @@ document.getElementById('btnClearSig').addEventListener('click', () => {
 });
 
 /* ══════════════════════════════════════════════════════
+   TYPED-SIGNATURE FALLBACK (accessible alternative to
+   drawing — for anyone who can't use a mouse/finger/stylus)
+══════════════════════════════════════════════════════ */
+document.getElementById('btnTypedToggle').addEventListener('click', () => {
+  sigMode = 'typed';
+  document.getElementById('drawSigLabel').style.display = 'none';
+  document.getElementById('sigWrap').style.display = 'none';
+  document.getElementById('btnTypedToggle').style.display = 'none';
+  document.getElementById('typedSigField').style.display = '';
+  document.getElementById('typedSigInput').focus();
+  checkReady();
+  updateSigPreview();
+});
+document.getElementById('btnDrawToggle').addEventListener('click', () => {
+  sigMode = 'draw';
+  typedSigDataUrl = null;
+  document.getElementById('typedSigField').style.display = 'none';
+  document.getElementById('drawSigLabel').style.display = '';
+  document.getElementById('sigWrap').style.display = '';
+  document.getElementById('btnTypedToggle').style.display = '';
+  checkReady();
+  updateSigPreview();
+});
+document.getElementById('typedSigInput').addEventListener('input', (e) => {
+  const text = e.target.value;
+  const previewEl = document.getElementById('typedSigPreview');
+  if (text.trim()) {
+    previewEl.textContent = text;
+    previewEl.classList.remove('placeholder');
+    typedSigDataUrl = renderTypedSignatureImage(text);
+  } else {
+    previewEl.textContent = 'Your typed signature will appear here';
+    previewEl.classList.add('placeholder');
+    typedSigDataUrl = null;
+  }
+  checkReady();
+  updateSigPreview();
+});
+
+/* ══════════════════════════════════════════════════════
    SUBMIT READINESS
 ══════════════════════════════════════════════════════ */
 function checkReady() {
   const name  = document.getElementById('signerName').value.trim();
   const agreed= document.getElementById('chkAgree').checked;
-  document.getElementById('btnSign').disabled = !(name && agreed && hasSig);
+  document.getElementById('btnSign').disabled = !(name && agreed && signaturePresent());
 }
 document.getElementById('signerName').addEventListener('input', () => { checkReady(); updateSigPreview(); });
 document.getElementById('chkAgree').addEventListener('change', checkReady);
@@ -633,12 +786,29 @@ document.getElementById('chkAgree').addEventListener('change', checkReady);
 /* ══════════════════════════════════════════════════════
    SUBMIT SIGNATURE
 ══════════════════════════════════════════════════════ */
-document.getElementById('btnSign').addEventListener('click', async () => {
-  const btn = document.getElementById('btnSign');
-  btn.disabled = true;
-  btn.textContent = 'Submitting…';
+document.getElementById('btnSign').addEventListener('click', () => {
+  const signerName = document.getElementById('signerName').value.trim();
+  document.getElementById('confirmPanelText').textContent =
+    `You're about to sign this quotation as "${signerName}". This constitutes a legally binding acceptance and cannot be undone. Please confirm you want to proceed.`;
+  document.getElementById('confirmPanel').style.display = '';
+  document.getElementById('btnSign').style.display = 'none';
+  document.getElementById('confirmPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
 
-  const signatureBase64 = canvas.toDataURL('image/png');
+document.getElementById('btnConfirmCancel').addEventListener('click', () => {
+  document.getElementById('confirmPanel').style.display = 'none';
+  document.getElementById('btnSign').style.display = '';
+});
+
+document.getElementById('btnConfirmSubmit').addEventListener('click', async () => {
+  const btn = document.getElementById('btnConfirmSubmit');
+  const cancelBtn = document.getElementById('btnConfirmCancel');
+  btn.disabled = true;
+  cancelBtn.disabled = true;
+  btn.textContent = 'Submitting…';
+  clearSignError();
+
+  const signatureBase64 = getSignatureDataUrl();
   const signerName = document.getElementById('signerName').value.trim();
 
   const payload = {
@@ -650,22 +820,41 @@ document.getElementById('btnSign').addEventListener('click', async () => {
     signed_at:        new Date().toISOString()
   };
 
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 15000);
   try {
     const res = await fetch(N8N_SIGN, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
     });
+    clearTimeout(timeoutId);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    if (data.success === false) throw new Error(data.message || 'Unknown error');
+    if (data && data.success === false) throw new Error(data.message || 'Unknown error');
     document.getElementById('successRef').textContent = QUOTE_REF;
+    signedSuccessfully = true;
     setState('Success');
   } catch(e) {
-    alert('Submission failed: ' + e.message + '\n\nPlease try again or contact hello@thegentleedit.sg');
+    clearTimeout(timeoutId);
+    const msg = e.name === 'AbortError' ? 'The server took too long to respond.' : e.message;
+    showSignError('Submission failed: ' + msg + ' Please try again or contact hello@thegentleedit.sg');
     btn.disabled = false;
-    btn.textContent = 'Sign & Accept Quotation';
-    checkReady();
+    cancelBtn.disabled = false;
+    btn.textContent = 'Yes, Sign & Accept';
+  }
+});
+
+/* ══════════════════════════════════════════════════════
+   WARN BEFORE LOSING AN IN-PROGRESS SIGNATURE
+══════════════════════════════════════════════════════ */
+let signedSuccessfully = false;
+window.addEventListener('beforeunload', (e) => {
+  const nameEntered = document.getElementById('signerName') && document.getElementById('signerName').value.trim();
+  if (!signedSuccessfully && (signaturePresent() || nameEntered)) {
+    e.preventDefault();
+    e.returnValue = '';
   }
 });
 
