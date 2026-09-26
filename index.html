@@ -2,6 +2,7 @@
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://n8n.srv1165221.hstgr.cloud; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quotation Builder — The Gentle Edit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -557,10 +558,14 @@ const CONFIG = {
   draftUrl:    'https://n8n.srv1165221.hstgr.cloud/webhook/save-draft-quote',
   // n8n webhook — GET with ?ref=QT-xxx — returns saved quote JSON
   loadUrl:     'https://n8n.srv1165221.hstgr.cloud/webhook/load-quote',
-  // Google Sheets IDs (used by n8n, not the browser)
-  masterSheetId:  '13HqiurpWlpK6YWW-q1YGRcFzdRYhuhj5Rt5Z60qYy1Q',
-  catalogSheetId: '1qPNVKzvPNi1CXrCFhF1meICucmMN-5djjWjIuCa86vs',
-  quotesFolder:   '100T1humcjBh5Fvs_-e08fK314o5YsGAu',
+  // Shared header sent on every request to the four webhooks above. This is a
+  // basic opportunistic-abuse deterrent, not real authentication — it lives in
+  // this file, so anyone who reads the page source has it too. It stops blind
+  // internet scanning/bots hitting these URLs; it does not stop a determined,
+  // targeted attacker. Real protection belongs at the infrastructure layer
+  // (n8n Header Auth credential on each webhook, or a reverse-proxy allowlist).
+  apiKey: 'c1c693f3c56463490640d9562a29af8760729a351ee38fb3',
+  // Sheet/Drive IDs used by n8n live server-side now — the client never needs them.
   companyName: 'The Gentle Edit (Wee Tiling & Renovation)',
   companyReg:  'UEN: 53433573W',
   address:     '61 Ubi Road 1, #02-10 Oxley BizHub 1, Singapore 408727',
@@ -664,8 +669,30 @@ function updatePendingButton(){
 const uid   = () => 'li-' + Math.random().toString(36).substr(2,9);
 const fmt   = n  => '$' + (Number(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 const pct   = n  => (Number(n)||0).toFixed(1) + '%';
-const esc   = s  => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc   = s  => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const money = s  => parseFloat(String(s||'').replace(/[$,]/g,''))||0;
+const isValidEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s||'').trim());
+
+/* ══════════════════════════════════════════════════════
+   TIMED FETCH — every call to our n8n webhooks goes through this:
+   attaches the shared API-key header and aborts after a timeout
+   instead of hanging indefinitely on a flaky connection.
+══════════════════════════════════════════════════════ */
+async function apiFetch(url, options, timeoutMs){
+  timeoutMs = timeoutMs || 30000;
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeoutMs);
+  const opts = Object.assign({}, options, { signal: controller.signal });
+  opts.headers = Object.assign({}, opts.headers, { 'x-quote-api-key': CONFIG.apiKey });
+  try{
+    return await fetch(url, opts);
+  }catch(e){
+    if(e.name === 'AbortError') throw new Error('Request timed out after '+(timeoutMs/1000)+'s. Check your connection and try again.');
+    throw e;
+  }finally{
+    clearTimeout(timer);
+  }
+}
 
 /* ══════════════════════════════════════════════════════
    CSV PARSER
@@ -711,11 +738,26 @@ function setCatalogBadge(text, isError){
   if(!el){el=document.createElement('span');el.id='catalogBadge';el.style.cssText='font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600;margin-left:10px;vertical-align:middle';document.querySelector('.li-title').appendChild(el);}
   el.textContent=text;el.style.background=isError?'var(--danger)':'var(--success)';el.style.color='#fff';
 }
+let usingSampleCatalog = false;
+function updateSampleCatalogBanner(){
+  let el=document.getElementById('sampleCatalogBanner');
+  const btnIds=['btnSubmit','previewSubmitBtn','btnSaveDraft'];
+  if(usingSampleCatalog){
+    if(!el){
+      el=document.createElement('div');el.id='sampleCatalogBanner';
+      el.style.cssText='background:var(--danger);color:#fff;font-weight:600;font-size:12.5px;padding:10px 16px;text-align:center;position:sticky;top:var(--header-h);z-index:250;';
+      el.textContent='⚠ Catalog pricing failed to load — this is DEMO/sample data, not real pricing. Submit and Save Draft are disabled until the live catalog loads.';
+      document.querySelector('.app-body').parentNode.insertBefore(el,document.querySelector('.app-body'));
+    }
+    el.style.display='block';
+  }else if(el){ el.style.display='none'; }
+  btnIds.forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=usingSampleCatalog;});
+}
 async function loadCatalog(){
   if(CONFIG.catalogUrl && !CONFIG.catalogUrl.startsWith('PASTE_')){
     try{
       setCatalogBadge('Loading…',false);
-      const res=await fetch(CONFIG.catalogUrl);
+      const res=await apiFetch(CONFIG.catalogUrl);
       if(!res.ok) throw new Error('HTTP '+res.status);
       const text=await res.text();
       if(text.trim().startsWith('<!')) throw new Error('Got HTML instead of CSV — sheet not public');
@@ -724,15 +766,19 @@ async function loadCatalog(){
       if(!catalog.length)throw new Error('CSV parsed but 0 items mapped');
       setCatalogBadge('✓ Live: '+catalog.length+' items',false);
       console.log('Catalog loaded from Sheet:',catalog.length,'items');
+      usingSampleCatalog=false;
     }catch(e){
       console.warn('Falling back to sample catalog:',e.message);
       setCatalogBadge('⚠ Sample ('+e.message+')',true);
       catalog=SAMPLE_CATALOG;
+      usingSampleCatalog=true;
     }
   }else{
     setCatalogBadge('⚠ Sample (no URL)',true);
     catalog=SAMPLE_CATALOG;
+    usingSampleCatalog=true;
   }
+  updateSampleCatalogBanner();
   initLineItems();
   pendingItems.clear();
   updatePendingButton();
@@ -901,14 +947,17 @@ function renderLineItems(){
     const sec=document.createElement('div');sec.className='cat-section';sec.dataset.catId=catId;
 
     // ── Category header ──────────────────────────────
-    const hdr=document.createElement('div');hdr.className='cat-sec-header';
+    const hdr=document.createElement('div');hdr.className='cat-sec-header';hdr.setAttribute('role','button');hdr.setAttribute('tabindex','0');
     const countTxt=catLIs.length?`${catLIs.length} item${catLIs.length!==1?'s':''}`:'-';
     hdr.innerHTML=`<span class="cat-sec-title">${esc(catId)}</span><span class="cat-sec-count">${countTxt}</span><span class="cat-sec-chevron">▾</span>`;
-    hdr.addEventListener('click',()=>{catCollapsed.set(catId,sec.classList.toggle('collapsed'));});
+    function toggleCat(){const collapsed=sec.classList.toggle('collapsed');catCollapsed.set(catId,collapsed);hdr.setAttribute('aria-expanded',String(!collapsed));}
+    hdr.addEventListener('click',toggleCat);
+    hdr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleCat();}});
     // Collapse categories with no items selected and no defaults — but only decide this
     // the first time we see a category; afterwards respect whatever the user last set.
     if(!catCollapsed.has(catId))catCollapsed.set(catId,!catLIs.length);
     if(catCollapsed.get(catId))sec.classList.add('collapsed');
+    hdr.setAttribute('aria-expanded',String(!sec.classList.contains('collapsed')));
 
     const body=document.createElement('div');body.className='cat-sec-body';
 
@@ -931,11 +980,14 @@ function renderLineItems(){
   if(customs.length){
     const customKey='__custom__';
     const sec=document.createElement('div');sec.className='cat-section';sec.dataset.catId=customKey;
-    const hdr=document.createElement('div');hdr.className='cat-sec-header';
+    const hdr=document.createElement('div');hdr.className='cat-sec-header';hdr.setAttribute('role','button');hdr.setAttribute('tabindex','0');
     hdr.innerHTML=`<span class="cat-sec-title" style="color:var(--warning)">Custom Items</span><span class="cat-sec-count">${customs.length}</span><span class="cat-sec-chevron">▾</span>`;
-    hdr.addEventListener('click',()=>{catCollapsed.set(customKey,sec.classList.toggle('collapsed'));});
+    function toggleCustomCat(){const collapsed=sec.classList.toggle('collapsed');catCollapsed.set(customKey,collapsed);hdr.setAttribute('aria-expanded',String(!collapsed));}
+    hdr.addEventListener('click',toggleCustomCat);
+    hdr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleCustomCat();}});
     if(!catCollapsed.has(customKey))catCollapsed.set(customKey,false);
     if(catCollapsed.get(customKey))sec.classList.add('collapsed');
+    hdr.setAttribute('aria-expanded',String(!sec.classList.contains('collapsed')));
     const body=document.createElement('div');body.className='cat-sec-body';
     customs.forEach(li=>body.appendChild(renderCustomRow(li)));
     sec.appendChild(hdr);sec.appendChild(body);container.appendChild(sec);
@@ -1008,13 +1060,16 @@ function buildAreaSub(catId,areaId){
   const areaLIs=lineItems.filter(li=>!li.is_custom&&li.category_id===catId&&li.area_id===areaId);
   const includedN=areaLIs.filter(li=>li.included).length;
 
-  const hdr=document.createElement('div');hdr.className='area-sub-header';
+  const hdr=document.createElement('div');hdr.className='area-sub-header';hdr.setAttribute('role','button');hdr.setAttribute('tabindex','0');
   hdr.innerHTML=`<span class="area-sub-name">${esc(areaId)}</span><span class="area-sub-count">${includedN?includedN+' selected':''}</span><span class="area-sub-chevron">▾</span>`;
-  hdr.addEventListener('click',()=>{areaCollapsed.set(areaKey,sub.classList.toggle('collapsed'));});
+  function toggleArea(){const collapsed=sub.classList.toggle('collapsed');areaCollapsed.set(areaKey,collapsed);hdr.setAttribute('aria-expanded',String(!collapsed));}
+  hdr.addEventListener('click',toggleArea);
+  hdr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleArea();}});
   // Collapse areas with nothing selected — but only decide this the first time we see
   // an area; afterwards respect whatever the user last set.
   if(!areaCollapsed.has(areaKey))areaCollapsed.set(areaKey,!includedN);
   if(areaCollapsed.get(areaKey))sub.classList.add('collapsed');
+  hdr.setAttribute('aria-expanded',String(!sub.classList.contains('collapsed')));
 
   const body=document.createElement('div');body.className='area-sub-body';
   const visibleLIs=_loadedView?areaLIs.filter(li=>li.included):areaLIs;
@@ -1250,7 +1305,7 @@ function chargeToggleHTML(li,key){
   </div>`;
 }
 function refreshChargePL(block,key,st){
-  const el=block.querySelector(`[data-charge-pl="${key}"]`);
+  const el=block.querySelector(`[data-charge-pl="${CSS.escape(key)}"]`);
   if(!el)return;
   const pl=(Number(st.amtAmt)||0)-(Number(st.costAmt)||0);
   el.value=pl.toFixed(2);
@@ -1393,7 +1448,7 @@ function renderCatalogRow(li){
   let dimHTML='';
   if(li.has_dimensions){dimHTML=`<div class="item-dim-row"><div class="tf"><span class="tl">Width mm</span><input type="number" class="ti" data-field="width_mm" value="${li.width_mm||''}" placeholder="0"></div><div class="tf"><span class="tl">Height mm</span><input type="number" class="ti" data-field="height_mm" value="${li.height_mm||''}" placeholder="0"></div></div>`;}
   row.innerHTML=`
-    <div class="item-check"><input type="checkbox"${li.included?' checked':''}></div>
+    <div class="item-check"><input type="checkbox" aria-label="Include this line item in the quote"${li.included?' checked':''}></div>
     <div class="item-body">
       <div class="item-name">${esc(li.item_name)}</div>
       <div class="item-inputs">
@@ -1407,7 +1462,7 @@ function renderCatalogRow(li){
       ${carp?chargeNoteHTML(li):''}
       ${dimHTML}${commentHTML}
     </div>
-    <button class="item-remove" title="Remove from quote">✕</button>`;
+    <button class="item-remove" title="Remove from quote" aria-label="Remove line item">✕</button>`;
   row.querySelector('input[type=checkbox]').addEventListener('change',e=>{
     li.included=e.target.checked;row.classList.toggle('unchecked',!li.included);updateSummary();
   });
@@ -1426,7 +1481,10 @@ function handleChange(e,li,row){
   const field=e.target.dataset.field,val=e.target.value;
   if(field==='unit'){li.unit=val;}
   else{
-    li[field]=parseFloat(val)||0;
+    // pl (P/L) is legitimately allowed to go negative — a loss-making line is a
+    // real thing a salesperson may need to enter — only qty/cost/amount are clamped.
+    const n=parseFloat(val)||0;
+    li[field]=(field==='pl')?n:Math.max(0,n);
     if(field==='pl'){
       li.amount=li.base_cost+(parseFloat(val)||0);
       const el=row.querySelector('[data-field="amount"]');if(el)el.value=li.amount.toFixed(2);
@@ -1454,7 +1512,7 @@ function renderCustomRow(li){
   const areaOpts=[...new Set(catalog.map(c=>c.area_id||'').filter(Boolean))].map(a=>`<option value="${esc(a)}"${li.area_id===a?' selected':''}>${esc(a)}</option>`).join('');
   const pl=calcPL(li);
   const carp=isCarpentry(li);
-  row.innerHTML=`<div class="custom-head"><span class="custom-tag">Custom</span><button class="btn-icon" title="Remove">✕</button></div>
+  row.innerHTML=`<div class="custom-head"><span class="custom-tag">Custom</span><button class="btn-icon" title="Remove" aria-label="Remove custom line item">✕</button></div>
     <div class="custom-g1">
       <div class="tf"><span class="tl">Description</span><input type="text" class="ti" data-field="item_name" value="${esc(li.item_name)}" placeholder="Item description"></div>
       <div class="tf"><span class="tl">Area</span><select class="ti" data-field="area_id" style="padding:4px 5px"><option value="">—</option>${areaOpts}<option value="Other"${li.area_id==='Other'?' selected':''}>Other</option></select></div>
@@ -1478,7 +1536,8 @@ function renderCustomRow(li){
     el.addEventListener(ev,e=>{
       const f=e.target.dataset.field;
       const textF=['item_name','unit','area_id','category_id'];
-      li[f]=textF.includes(f)?e.target.value:(parseFloat(e.target.value)||0);
+      const n=parseFloat(e.target.value)||0;
+      li[f]=textF.includes(f)?e.target.value:(f==='pl'?n:Math.max(0,n));
       if(f==='pl'){
         li.amount=li.base_cost+(parseFloat(e.target.value)||0);
         const el=row.querySelector('[data-field="amount"]');if(el)el.value=li.amount.toFixed(2);
@@ -1539,7 +1598,7 @@ async function loadQuote(){
   }
   setStatus('loading','Loading quote '+ref+'…');
   try{
-    const res=await fetch(CONFIG.loadUrl+'?ref='+encodeURIComponent(ref));
+    const res=await apiFetch(CONFIG.loadUrl+'?ref='+encodeURIComponent(ref));
     if(!res.ok)throw new Error('HTTP '+res.status);
     let data=await res.json();
     // Defensive: if webhook returns an array of matching rows (e.g. multiple
@@ -2078,6 +2137,7 @@ document.getElementById('mtbPreviewBtn').addEventListener('click',openPreview);
 document.getElementById('previewClose').addEventListener('click',()=>document.getElementById('previewOverlay').classList.remove('open'));
 document.getElementById('previewCloseBtn').addEventListener('click',()=>document.getElementById('previewOverlay').classList.remove('open'));
 document.getElementById('previewOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('open');});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('previewOverlay').classList.contains('open'))document.getElementById('previewOverlay').classList.remove('open');});
 window.addEventListener('resize',()=>{ if(document.getElementById('previewOverlay').classList.contains('open')) fitPreviewDoc(); });
 
 
@@ -2088,11 +2148,27 @@ function setStatus(state,msg){
   document.getElementById('statusRow').className='status-row s-'+state;
   document.getElementById('statusText').textContent=msg;
 }
+// Shared pre-flight checks for both Submit and Save Draft. Returns an error
+// string (or null if OK) instead of throwing, so callers can setStatus and stop.
+function validateBeforeSend(payload,mode){
+  if(usingSampleCatalog) return 'Catalog is running on demo/sample data — fix the catalog load before sending a real quote.';
+  if(!payload.line_items.length) return 'Add at least one line item before sending.';
+  // Quote Ref is only required for a final Submit. Save Draft intentionally allows
+  // a blank ref for a brand-new draft — the backend auto-assigns one in that case.
+  if(mode==='submit' && !document.getElementById('quoteRef').value.trim()) return 'Enter a Quote Ref first.';
+  if(!document.getElementById('clientName').value.trim()) return 'Enter a Client Name first.';
+  const email=document.getElementById('clientEmail').value.trim();
+  if(email && !isValidEmail(email)) return 'Client Email doesn\'t look valid — fix it or leave it blank.';
+  return null;
+}
 async function doSubmit(){
   if(!CONFIG.webhookUrl||CONFIG.webhookUrl==='PASTE_YOUR_WEBHOOK_URL_HERE'){
     setStatus('error','Webhook URL not configured.');
     console.log('Payload:',JSON.stringify(buildPayload(),null,2));return;
   }
+  const preflight=buildPayload();
+  const err=validateBeforeSend(preflight,'submit');
+  if(err){ setStatus('error',err); return; }
   const btnIds=['btnSubmit','previewSubmitBtn','btnSaveDraft'];
   btnIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
   try{
@@ -2101,7 +2177,7 @@ async function doSubmit(){
     payload.html_customer=buildStandaloneDocHTML(payload,'customer');
     payload.html_designer=buildStandaloneDocHTML(payload,'designer');
     payload.mode='submit';
-    const res=await fetch(CONFIG.webhookUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const res=await apiFetch(CONFIG.webhookUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(res.ok){
       let resp={};try{resp=await res.json();}catch(_){}
       const ref=resp.quote_ref||payload.project.quote_ref||'';
@@ -2110,14 +2186,21 @@ async function doSubmit(){
       document.getElementById('previewOverlay').classList.remove('open');
     }else setStatus('error',`Error ${res.status}: ${res.statusText}`);
   }catch(e){setStatus('error','Error — '+e.message);}
-  finally{btnIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});}
+  finally{btnIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});updateSampleCatalogBanner();}
 }
 async function doSaveDraft(){
-  const draftUrl=CONFIG.draftUrl||CONFIG.webhookUrl;
+  // NOTE: deliberately no fallback to CONFIG.webhookUrl anymore. That fallback used
+  // to mean a misconfigured draftUrl would silently submit a "draft" click as a real
+  // Submit — sheet write, PDFs, and a client email with a signing link for a quote
+  // the salesperson never intended to send. Fail loudly instead.
+  const draftUrl=CONFIG.draftUrl;
   if(!draftUrl||draftUrl==='PASTE_YOUR_WEBHOOK_URL_HERE'){
-    setStatus('error','Webhook URL not configured.');
+    setStatus('error','Draft URL not configured — refusing to fall back to Submit.');
     console.log('Draft Payload:',JSON.stringify(buildPayload(),null,2));return;
   }
+  const preflight=buildPayload();
+  const err=validateBeforeSend(preflight,'draft');
+  if(err){ setStatus('error',err); return; }
   const btnIds=['btnSubmit','previewSubmitBtn','btnSaveDraft'];
   btnIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
   try{
@@ -2126,7 +2209,7 @@ async function doSaveDraft(){
     payload.html_customer=buildStandaloneDocHTML(payload,'customer');
     payload.html_designer=buildStandaloneDocHTML(payload,'designer');
     payload.mode='draft';
-    const res=await fetch(draftUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const res=await apiFetch(draftUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(res.ok){
       let resp={};try{resp=await res.json();}catch(_){}
       const ref=resp.quote_ref||payload.project.quote_ref||'';
@@ -2134,7 +2217,7 @@ async function doSaveDraft(){
       if(resp.quote_ref)document.getElementById('quoteRef').value=resp.quote_ref;
     }else setStatus('error',`Error ${res.status}: ${res.statusText}`);
   }catch(e){setStatus('error','Error — '+e.message);}
-  finally{btnIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});}
+  finally{btnIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});updateSampleCatalogBanner();}
 }
 document.getElementById('btnSubmit').addEventListener('click',doSubmit);
 document.getElementById('previewSubmitBtn').addEventListener('click',doSubmit);
