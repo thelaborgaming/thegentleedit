@@ -173,16 +173,16 @@ tbody tr:hover{background:var(--accent-light)}
   </div>
 
   <div class="filters-bar">
-    <input type="search" id="searchInput" class="search-input" placeholder="Search client or quote ref…">
-    <select id="statusFilter" class="sel"><option value="">All Statuses</option></select>
-    <select id="spFilter" class="sel"><option value="">All Salespeople</option></select>
+    <input type="search" id="searchInput" class="search-input" placeholder="Search client or quote ref…" aria-label="Search by client name or quote reference">
+    <select id="statusFilter" class="sel" aria-label="Filter by status"><option value="">All Statuses</option></select>
+    <select id="spFilter" class="sel" aria-label="Filter by salesperson"><option value="">All Salespeople</option></select>
   </div>
 
   <div id="loadingState" class="state-panel" style="display:none">
     <div class="state-title">Loading quotes…</div>
   </div>
 
-  <div id="errorState" class="state-panel error" style="display:none">
+  <div id="errorState" class="state-panel error" style="display:none" role="alert" aria-live="assertive">
     <div class="state-title">Couldn't load quotes</div>
     <div class="state-sub">Something went wrong reaching the quotes service. Check your connection and try again.</div>
     <button class="btn btn-primary" id="retryBtn">Retry</button>
@@ -208,10 +208,10 @@ tbody tr:hover{background:var(--accent-light)}
             <th>Client</th>
             <th>Salesperson</th>
             <th>Status</th>
-            <th class="sortable" data-field="total_amount">Total Amount<span class="sort-arrow"></span></th>
+            <th class="sortable" data-field="total_amount" tabindex="0" role="button" aria-sort="none">Total Amount<span class="sort-arrow"></span></th>
             <th>Margin</th>
-            <th class="sortable" data-field="created_at">Created<span class="sort-arrow"></span></th>
-            <th class="sortable" data-field="updated_at">Last Updated<span class="sort-arrow"></span></th>
+            <th class="sortable" data-field="created_at" tabindex="0" role="button" aria-sort="none">Created<span class="sort-arrow"></span></th>
+            <th class="sortable" data-field="updated_at" tabindex="0" role="button" aria-sort="descending">Last Updated<span class="sort-arrow"></span></th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -242,19 +242,28 @@ tbody tr:hover{background:var(--accent-light)}
 const CONFIG = {
   quotesListUrl:  'https://n8n.srv1165221.hstgr.cloud/webhook/quotes-list',
   amendStatusUrl: 'https://n8n.srv1165221.hstgr.cloud/webhook/amend-quote-status',
-  builderUrl:     'quotation-builder-TheGentleEdit.html'
+  builderUrl:     'index.html',
+  // Matches the x-quote-api-key convention already used by GentleEdit_LoadQuote /
+  // GentleEdit_ClientSign. This is a deterrent, not a real access boundary — anyone
+  // reading this file's source can see it. Treat this dashboard as internal-only
+  // and keep it off any public index; for real protection, gate it at the hosting
+  // layer (IP allowlist / basic auth) as well.
+  apiKey: 'c1c693f3c56463490640d9562a29af8760729a351ee38fb3'
 };
 
 /* ══════════════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════════════ */
 let allRecords = [];
+let dataVersion = 0; // bumped on every fetch; guards pending edits against a mid-flight refresh
 let generatedAt = null;
 let filters = { search:'', status:'', salesperson:'' };
 let sortState = { field:'updated_at', dir:'desc' };
 let currentPage = 1;
 const PAGE_SIZE = 25;
 let rowMessages = {};
+let skippedCount = 0; // quotes the backend couldn't parse and left out — surfaced so it isn't silently invisible
+let inFlightController = null; // cancels a stale fetchQuotes() request if a newer one starts
 
 /* ══════════════════════════════════════════════════════
    FORMATTING HELPERS
@@ -265,30 +274,31 @@ function escHtml(s){
 function fmtMoney(n){
   const v = Number(n);
   if(isNaN(v)) return '—';
-  return new Intl.NumberFormat('en-SG',{style:'currency',currency:'SGD',maximumFractionDigits:0}).format(v);
+  return new Intl.NumberFormat('en-SG',{style:'currency',currency:'SGD'}).format(v);
 }
 function fmtPct(n){
   const v = Number(n);
   if(isNaN(v)) return '—';
   return v.toFixed(1)+'%';
 }
+const SGT = 'Asia/Singapore';
 function fmtDate(iso){
   if(!iso) return '—';
   const d = new Date(iso);
   if(isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+  return d.toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric',timeZone:SGT});
 }
 function fmtDateTime(iso){
   if(!iso) return '—';
   const d = new Date(iso);
   if(isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-SG',{day:'2-digit',month:'short'})+', '+d.toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit'});
+  return d.toLocaleDateString('en-SG',{day:'2-digit',month:'short',timeZone:SGT})+', '+d.toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit',timeZone:SGT});
 }
 function fmtSyncTime(iso){
   if(!iso) return 'Not synced yet';
   const d = new Date(iso);
   if(isNaN(d.getTime())) return 'Not synced yet';
-  return 'Last synced '+d.toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  return 'Last synced '+d.toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:SGT});
 }
 function marginTier(pct){
   const v = Number(pct);
@@ -304,9 +314,16 @@ function marginTier(pct){
 function lockIconHTML(){
   return '<svg class="lock-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M7 10V7a5 5 0 0 1 10 0v3"></path></svg>';
 }
+function signedPdfLinkHTML(r){
+  if(r.status!=='SIGNED' || !r.signed_pdf_url) return '';
+  return ' <a class="qref-link" href="'+escHtml(r.signed_pdf_url)+'" target="_blank" rel="noopener noreferrer" title="Open signed PDF" aria-label="Open signed PDF for '+escHtml(r.quote_ref||'')+'">PDF ↗</a>';
+}
 function badgeHTML(status){
   const s = status || 'DRAFT';
-  return '<span class="badge badge-'+s.toLowerCase()+'">'+escHtml(s)+'</span>';
+  // Never let an unvalidated string reach a CSS class name unescaped — the backend
+  // now whitelists status server-side too, but this is defense in depth.
+  const safeClass = /^[A-Z_]+$/i.test(s) ? s.toLowerCase() : 'draft';
+  return '<span class="badge badge-'+safeClass+'">'+escHtml(s)+'</span>';
 }
 function marginDotHTML(pct){
   const tier = marginTier(pct);
@@ -323,12 +340,12 @@ function voidButtonHTML(r){
 function rowMsgHTML(ref){
   const m = rowMessages[ref];
   if(!m) return '';
-  return '<div class="row-msg">'+escHtml(m.text)+'</div>';
+  return '<div class="row-msg" role="alert">'+escHtml(m.text)+'</div>';
 }
 function notesLineHTML(r){
   const val = r.notes || '';
   const display = val ? escHtml(val) : '<em>+ Add note</em>';
-  return '<div class="notes-line" data-action="edit-notes" data-ref="'+escHtml(r.quote_ref)+'" title="Click to edit note">'+display+'</div>';
+  return '<div class="notes-line" data-action="edit-notes" data-ref="'+escHtml(r.quote_ref)+'" title="Click to edit note" tabindex="0" role="button" aria-label="Edit note">'+display+'</div>';
 }
 
 /* ══════════════════════════════════════════════════════
@@ -349,7 +366,7 @@ function rowHTML(r){
     +'<td class="margin-cell '+marginTier(r.margin_pct)+'">'+fmtPct(r.margin_pct)+'</td>'
     +'<td class="date-cell">'+fmtDate(r.created_at)+'</td>'
     +'<td class="date-cell">'+fmtDateTime(r.updated_at)+'</td>'
-    +'<td>'+voidButtonHTML(r)+rowMsgHTML(r.quote_ref)+'</td>'
+    +'<td>'+voidButtonHTML(r)+signedPdfLinkHTML(r)+rowMsgHTML(r.quote_ref)+'</td>'
   +'</tr>';
 }
 function cardHTML(r){
@@ -370,7 +387,7 @@ function cardHTML(r){
     +'<div class="qc-meta">Created '+fmtDate(r.created_at)+'</div>'
     +'<div class="qc-meta">Updated '+fmtDateTime(r.updated_at)+'</div>'
     +'<div class="qc-notes">'+notesLineHTML(r)+'</div>'
-    +'<div class="qc-actions">'+voidButtonHTML(r)+'</div>'
+    +'<div class="qc-actions">'+voidButtonHTML(r)+signedPdfLinkHTML(r)+'</div>'
     +rowMsgHTML(r.quote_ref)
   +'</div>';
 }
@@ -432,12 +449,15 @@ function renderKPIs(filtered){
 function updateSortIndicators(){
   document.querySelectorAll('th.sortable').forEach(th=>{
     const arrow = th.querySelector('.sort-arrow');
-    if(!arrow) return;
-    arrow.textContent = th.dataset.field===sortState.field ? (sortState.dir==='asc' ? ' ▲' : ' ▼') : '';
+    const isActive = th.dataset.field===sortState.field;
+    if(arrow) arrow.textContent = isActive ? (sortState.dir==='asc' ? ' ▲' : ' ▼') : '';
+    th.setAttribute('aria-sort', isActive ? (sortState.dir==='asc'?'ascending':'descending') : 'none');
   });
 }
 function updateSyncLabel(){
-  document.getElementById('syncLabel').textContent = fmtSyncTime(generatedAt);
+  let text = fmtSyncTime(generatedAt);
+  if(skippedCount > 0) text += ' · ' + skippedCount + ' quote' + (skippedCount===1?'':'s') + " couldn't be loaded";
+  document.getElementById('syncLabel').textContent = text;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -494,20 +514,30 @@ function setLoading(on){
   }
 }
 async function fetchQuotes(){
+  if(inFlightController) inFlightController.abort();
+  const controller = new AbortController();
+  inFlightController = controller;
   setLoading(true);
   try{
-    const res = await fetch(CONFIG.quotesListUrl);
+    const res = await fetch(CONFIG.quotesListUrl, {
+      headers: { 'x-quote-api-key': CONFIG.apiKey },
+      signal: controller.signal
+    });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
+    if(data.executionId) console.debug('quotes-list execution:', data.executionId);
     allRecords = Array.isArray(data.records) ? data.records : [];
     generatedAt = data.generatedAt || null;
+    skippedCount = Number(data.skippedCount) || 0;
     rowMessages = {};
     currentPage = 1;
+    dataVersion++;
     populateFilterOptions();
     setLoading(false);
     document.getElementById('errorState').style.display='none';
     render();
   } catch(err){
+    if(err.name==='AbortError') return; // superseded by a newer refresh — that one will render
     setLoading(false);
     document.getElementById('contentArea').style.display='none';
     document.getElementById('emptyState').style.display='none';
@@ -522,11 +552,12 @@ async function fetchQuotes(){
 async function postAmend(body){
   return fetch(CONFIG.amendStatusUrl,{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:{'Content-Type':'application/json','x-quote-api-key':CONFIG.apiKey},
     body: JSON.stringify(body)
   });
 }
 async function doVoid(ref){
+  const startVersion = dataVersion;
   const rec = allRecords.find(r=>r.quote_ref===ref);
   if(!rec || rec._pending) return;
   const prevStatus = rec.status, prevUpdatedAt = rec.updated_at;
@@ -536,6 +567,7 @@ async function doVoid(ref){
   render();
   try{
     const res = await postAmend({ quote_ref: ref, lastSeenUpdatedAt: prevUpdatedAt, status:'VOID' });
+    if(dataVersion !== startVersion) return; // a refresh replaced allRecords while this was in flight — drop it, a fresh fetch already has the current truth
     if(res.status===409){
       rec.status = prevStatus;
       const data = await res.json().catch(()=>({}));
@@ -546,16 +578,19 @@ async function doVoid(ref){
     } else {
       const data = await res.json().catch(()=>({}));
       if(data.updated_at) rec.updated_at = data.updated_at;
+      if(data.executionId) console.debug('amend-quote-status execution:', data.executionId);
     }
   } catch(err){
+    if(dataVersion !== startVersion) return;
     rec.status = prevStatus;
     rowMessages[ref] = { text: 'Failed to update — please try again.' };
   } finally {
     rec._pending = false;
-    render();
+    if(dataVersion === startVersion) render();
   }
 }
 async function saveNotes(ref, newValue){
+  const startVersion = dataVersion;
   const rec = allRecords.find(r=>r.quote_ref===ref);
   if(!rec) return;
   const prevNotes = rec.notes || '';
@@ -566,6 +601,7 @@ async function saveNotes(ref, newValue){
   render();
   try{
     const res = await postAmend({ quote_ref: ref, lastSeenUpdatedAt: prevUpdatedAt, notes:newValue });
+    if(dataVersion !== startVersion) return;
     if(res.status===409){
       rec.notes = prevNotes;
       const data = await res.json().catch(()=>({}));
@@ -576,12 +612,14 @@ async function saveNotes(ref, newValue){
     } else {
       const data = await res.json().catch(()=>({}));
       if(data.updated_at) rec.updated_at = data.updated_at;
+      if(data.executionId) console.debug('amend-quote-status execution:', data.executionId);
     }
   } catch(err){
+    if(dataVersion !== startVersion) return;
     rec.notes = prevNotes;
     rowMessages[ref] = { text: 'Failed to save note — please try again.' };
   } finally {
-    render();
+    if(dataVersion === startVersion) render();
   }
 }
 
@@ -619,9 +657,13 @@ function handleContentFocusOut(e){
   if(e.target.classList.contains('notes-input')) finishEditNotes(e.target);
 }
 function handleContentKeydown(e){
-  if(!e.target.classList.contains('notes-input')) return;
-  if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); }
-  if(e.key==='Escape'){ e.target.value = e.target.dataset.original || ''; e.target.blur(); }
+  if(e.target.classList.contains('notes-input')){
+    if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); }
+    if(e.key==='Escape'){ e.target.value = e.target.dataset.original || ''; e.target.blur(); }
+    return;
+  }
+  const notesEl = e.target.closest('[data-action="edit-notes"]');
+  if(notesEl && (e.key==='Enter' || e.key===' ')){ e.preventDefault(); startEditNotes(notesEl); }
 }
 
 function applyHeaderLogo(){
@@ -660,11 +702,15 @@ function init(){
     currentPage++; render();
   });
   document.querySelectorAll('th.sortable').forEach(th=>{
-    th.addEventListener('click', ()=>{
+    function applySort(){
       const field = th.dataset.field;
       if(sortState.field===field){ sortState.dir = sortState.dir==='asc' ? 'desc' : 'asc'; }
       else { sortState.field = field; sortState.dir = 'desc'; }
       render();
+    }
+    th.addEventListener('click', applySort);
+    th.addEventListener('keydown', e=>{
+      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); applySort(); }
     });
   });
 
