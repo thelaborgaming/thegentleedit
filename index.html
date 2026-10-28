@@ -2283,7 +2283,15 @@ function applyHeaderLogo(){
 }
 applyHeaderLogo();
 syncStickyOffsets();
-loadCatalog();
+// Deep link from the dashboard: index.html?qtref=QT-... loads that quote once the catalog is ready.
+loadCatalog().then(()=>{
+  let ref='';
+  try{ ref=(new URLSearchParams(location.search).get('qtref')||'').trim(); }catch(e){}
+  if(ref){
+    document.getElementById('loadRef').value=ref;
+    loadQuote();
+  }
+});
 </script>
 </body>
 </html>
